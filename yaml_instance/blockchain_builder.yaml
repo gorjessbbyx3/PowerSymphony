@@ -1,0 +1,263 @@
+graph:
+  id: blockchain_builder
+  description: "Blockchain dApp Builder: Domain-specific workflow for Web3 development. A Blockchain Architect designs the system, a Smart Contract Developer writes Solidity code, a dApp Frontend Developer builds the React/Web3 interface, and a Security Auditor reviews for vulnerabilities before deployment."
+  log_level: DEBUG
+  is_majority_voting: false
+  nodes:
+    - id: USER
+      type: passthrough
+      description: ''
+      context_window: 0
+      config: {}
+
+    - id: FINAL
+      type: passthrough
+      description: ''
+      context_window: 0
+      config: {}
+
+    - id: Blockchain Architect
+      type: agent
+      description: 'Designs the blockchain architecture and tokenomics'
+      context_window: -1
+      config:
+        name: gpt-4o
+        provider: openai
+        base_url: ${BASE_URL}
+        api_key: ${API_KEY}
+        role: |-
+          You are a Web3 Blockchain Architect with deep expertise in Ethereum, Solidity, DeFi protocols, and dApp design.
+
+          Analyze the user's blockchain project request and produce a complete architecture document:
+
+          ## Blockchain Architecture Document
+
+          ### Project Overview
+          - What the dApp does
+          - Target blockchain (Ethereum mainnet, Polygon, Base, Arbitrum, etc.)
+          - Token standard if applicable (ERC-20, ERC-721, ERC-1155, ERC-4626, etc.)
+
+          ### Smart Contract Architecture
+          - Contract names and their responsibilities
+          - Inheritance hierarchy (OpenZeppelin contracts to use)
+          - Key state variables and their types
+          - Function signatures (public/private, view/pure/payable)
+          - Events to emit
+          - Access control model (Ownable, AccessControl, roles)
+
+          ### Tokenomics (if applicable)
+          - Total supply, distribution, vesting schedules
+          - Fee structure, burn mechanisms
+          - Governance model
+
+          ### DApp Frontend Architecture
+          - Pages/views needed
+          - Wallet connection (wagmi, ethers.js, web3.js)
+          - Key user interactions
+          - State management approach
+
+          ### Deployment Plan
+          - Network selection and rationale
+          - Deployment sequence (dependencies)
+          - Verification on Etherscan
+          - Initial configuration transactions
+
+          ### Security Considerations
+          - Known attack vectors to guard against
+          - Upgradability pattern if needed (transparent proxy, UUPS)
+          - Audit priorities
+
+          Be specific and production-ready in your architecture.
+        params: {}
+        tooling: null
+        thinking: null
+        memories: []
+        retry: null
+
+    - id: Smart Contract Developer
+      type: agent
+      description: 'Writes production-ready Solidity smart contracts'
+      context_window: -1
+      config:
+        name: gpt-4o
+        provider: openai
+        base_url: ${BASE_URL}
+        api_key: ${API_KEY}
+        role: |-
+          You are a Senior Solidity Developer. You have received the blockchain architecture from the Blockchain Architect.
+
+          Write complete, production-ready Solidity smart contracts:
+
+          Requirements:
+          - Use Solidity ^0.8.20
+          - Import from OpenZeppelin Contracts v5 where applicable
+          - Include comprehensive NatSpec documentation (/// @notice, /// @param, /// @return)
+          - Implement all functions specified in the architecture
+          - Add proper access control (Ownable, AccessControl)
+          - Emit events for all state changes
+          - Include custom errors instead of require strings
+          - Add reentrancy guards where needed
+          - Write gas-efficient code
+
+          Also write:
+          1. **Hardhat/Foundry deployment script** (scripts/deploy.js or script/Deploy.s.sol)
+          2. **hardhat.config.js** or **foundry.toml** configuration
+          3. **package.json** or similar with all dependencies
+
+          Save all contract files using the file tools.
+          Label each file clearly: `// File: contracts/ContractName.sol`
+        params: {}
+        tooling:
+          - type: function
+            config:
+              tools:
+                - name: save_file
+                - name: read_file_segment
+                - name: create_folder
+                - name: list_directory
+                - name: apply_text_edits
+                - name: describe_available_files
+              timeout:
+        thinking: null
+        memories: []
+        retry: null
+
+    - id: dApp Frontend Developer
+      type: agent
+      description: 'Builds the Web3 React frontend for the dApp'
+      context_window: -1
+      config:
+        name: gpt-4o
+        provider: openai
+        base_url: ${BASE_URL}
+        api_key: ${API_KEY}
+        role: |-
+          You are a Senior dApp Frontend Developer specializing in React and Web3 integration.
+          You have the architecture and the smart contract code.
+
+          Build a complete React dApp frontend:
+
+          **Tech Stack**:
+          - React 18 + TypeScript
+          - wagmi v2 for wallet/contract interactions
+          - viem for Ethereum utilities
+          - RainbowKit or ConnectKit for wallet connection UI
+          - Tailwind CSS for styling
+
+          **Required Components**:
+          1. `ConnectWallet` — wallet connection with network switching
+          2. Contract interaction components for each main function
+          3. Transaction status (pending, confirmed, failed)
+          4. Event listener hooks to update UI on contract events
+          5. Error handling with user-friendly messages
+
+          **Pages**:
+          - Home/Dashboard showing contract state
+          - Each major feature as its own section/page
+          - Transaction history view
+
+          Include:
+          - `wagmi.config.ts` with contract ABI and addresses
+          - Generated TypeScript ABI types (wagmi generate)
+          - Environment variable setup (.env.example)
+
+          Save all frontend files using the file tools.
+          Write complete, working code — no placeholders.
+        params: {}
+        tooling:
+          - type: function
+            config:
+              tools:
+                - name: save_file
+                - name: read_file_segment
+                - name: create_folder
+                - name: list_directory
+                - name: apply_text_edits
+                - name: describe_available_files
+              timeout:
+        thinking: null
+        memories: []
+        retry: null
+
+    - id: Smart Contract Security Auditor
+      type: agent
+      description: 'Audits the smart contracts for security vulnerabilities'
+      context_window: -1
+      config:
+        name: gpt-4o
+        provider: openai
+        base_url: ${BASE_URL}
+        api_key: ${API_KEY}
+        role: |-
+          You are a Smart Contract Security Auditor with expertise in EVM security and DeFi attack vectors.
+          Review ALL smart contract code written by the Smart Contract Developer.
+
+          ## Security Audit Report
+
+          ### Audit Scope
+          List all contracts reviewed.
+
+          ### Critical Findings (Must Fix — Can Lead to Fund Loss)
+          Check for:
+          - Reentrancy attacks (check-effects-interactions pattern)
+          - Integer overflow/underflow (pre-0.8.0 patterns)
+          - Front-running vulnerabilities (MEV extraction)
+          - Flash loan attack vectors
+          - Access control vulnerabilities
+          - Uninitialized proxy storage (if using upgradeable pattern)
+
+          ### High Severity Findings
+          - Denial of service vectors
+          - Centralization risks (admin key risk)
+          - Oracle manipulation
+          - Timestamp dependence
+
+          ### Medium/Low Findings
+          - Gas optimization opportunities
+          - Code quality issues
+
+          ### Slither/Mythril Static Analysis Simulation
+          List what automated tools would flag.
+
+          ### Recommended Fixes
+          For each finding, provide the corrected code.
+
+          ### Audit Conclusion
+          - Overall security rating: Excellent / Good / Fair / Poor
+          - Ready for mainnet: Yes / No / After Fixes
+          - Recommended next steps (professional audit, bug bounty, etc.)
+        params: {}
+        tooling: null
+        thinking: null
+        memories: []
+        retry: null
+
+  edges:
+    - from: USER
+      to: Blockchain Architect
+      condition:
+        type: always
+        config: {}
+    - from: Blockchain Architect
+      to: Smart Contract Developer
+      condition:
+        type: always
+        config: {}
+    - from: Smart Contract Developer
+      to: dApp Frontend Developer
+      condition:
+        type: always
+        config: {}
+    - from: dApp Frontend Developer
+      to: Smart Contract Security Auditor
+      condition:
+        type: always
+        config: {}
+    - from: Smart Contract Security Auditor
+      to: FINAL
+      condition:
+        type: always
+        config: {}
+
+  start:
+    - USER

@@ -2,7 +2,8 @@
 
 from . import (
     agent_performance, artifacts, batch, browser_agent, browser_control,
-    cloud_deploy, crm, execute, health, scraping, sessions, system_stats,
+    cicd, cloud_deploy, collaboration, crm, diagrams, execute, fine_tuning,
+    github_copilot, health, marketplace, scraping, sessions, system_stats,
     uploads, vuegraphs, workflows, websocket,
 )
 
@@ -23,6 +24,12 @@ ALL_ROUTERS = [
     crm.router,
     cloud_deploy.router,
     agent_performance.router,
+    github_copilot.router,
+    cicd.router,
+    fine_tuning.router,
+    marketplace.router,
+    collaboration.router,
+    diagrams.router,
 ]
 
 __all__ = ["ALL_ROUTERS"]

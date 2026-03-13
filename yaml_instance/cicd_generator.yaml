@@ -1,0 +1,166 @@
+graph:
+  id: cicd_generator
+  description: "CI/CD Pipeline Generator: Describe your project and get complete GitHub Actions workflows, Dockerfiles, docker-compose configurations, and deployment documentation — all ready to use. Cuts pipeline setup time from hours to minutes."
+  log_level: DEBUG
+  is_majority_voting: false
+  nodes:
+    - id: USER
+      type: passthrough
+      description: ''
+      context_window: 0
+      config: {}
+
+    - id: FINAL
+      type: passthrough
+      description: ''
+      context_window: 0
+      config: {}
+
+    - id: DevOps Architect
+      type: agent
+      description: 'Analyzes the project and designs the CI/CD strategy'
+      context_window: -1
+      config:
+        name: gpt-4o
+        provider: openai
+        base_url: ${BASE_URL}
+        api_key: ${API_KEY}
+        role: |-
+          You are a Senior DevOps Architect specializing in CI/CD pipeline design.
+
+          Analyze the user's project description and design a complete CI/CD strategy:
+
+          ## CI/CD Strategy Document
+
+          ### Project Analysis
+          - Language/framework detected
+          - Deployment target (Vercel, Netlify, AWS, GCP, Heroku, VPS)
+          - Environment complexity (single/multi-environment)
+
+          ### Pipeline Architecture
+          **Stages**:
+          1. **Install** — dependency installation with caching
+          2. **Lint** — code style and static analysis
+          3. **Test** — unit + integration tests with coverage
+          4. **Build** — compile/bundle for production
+          5. **Security Scan** — SAST, dependency vulnerability check
+          6. **Deploy** — environment-specific deployment
+          7. **Notify** — Slack/email notification on success/failure
+
+          **Branch Strategy**:
+          - feature/* → lint + test only
+          - develop → lint + test + deploy to staging
+          - main → full pipeline + deploy to production
+
+          ### Secret Management
+          List all required GitHub Secrets and how to configure them.
+
+          ### Estimated Pipeline Duration
+          Based on project type, estimate stage durations.
+
+          Then call the CI/CD generation tools to create all files.
+        params: {}
+        tooling:
+          - type: function
+            config:
+              tools:
+                - name: generate_github_actions
+                - name: generate_dockerfile
+                - name: generate_docker_compose
+                - name: generate_aws_codepipeline
+                - name: save_file
+                - name: create_folder
+              timeout:
+        thinking: null
+        memories: []
+        retry: null
+
+    - id: Pipeline Documentation Writer
+      type: agent
+      description: 'Writes complete setup documentation for all generated pipelines'
+      context_window: -1
+      config:
+        name: gpt-4o
+        provider: openai
+        base_url: ${BASE_URL}
+        api_key: ${API_KEY}
+        role: |-
+          You are a Technical Writer specializing in DevOps documentation.
+          You have the CI/CD strategy and all generated pipeline files.
+
+          Write comprehensive setup documentation:
+
+          ## CI/CD Setup Guide
+
+          ### Prerequisites
+          - Required accounts and tools
+          - Repository setup checklist
+
+          ### Step-by-Step Setup
+
+          **1. Repository Configuration**
+          ```bash
+          # Commands to set up the repo
+          ```
+
+          **2. GitHub Secrets Configuration**
+          | Secret Name | Description | How to Obtain |
+          |-------------|-------------|---------------|
+          | SECRET_NAME | What it does | Step-by-step to get it |
+
+          **3. First Run**
+          - How to trigger the first pipeline run
+          - What to expect on first run
+          - Common issues and fixes
+
+          **4. Branch Workflow**
+          Explain the branch → environment mapping.
+
+          **5. Monitoring & Alerts**
+          - Where to see pipeline status
+          - How to set up Slack notifications
+          - How to read test coverage reports
+
+          **6. Rollback Procedure**
+          - How to rollback a failed deployment
+          - Emergency hotfix process
+
+          ### Troubleshooting
+          Common CI/CD issues and solutions.
+
+          ### Estimated Cost
+          GitHub Actions free tier limits and when you'll need paid minutes.
+
+          Save as `CI_CD_SETUP.md` using the file tools.
+        params: {}
+        tooling:
+          - type: function
+            config:
+              tools:
+                - name: save_file
+                - name: read_file_segment
+                - name: list_directory
+              timeout:
+        thinking: null
+        memories: []
+        retry: null
+
+  edges:
+    - from: USER
+      to: DevOps Architect
+      condition:
+        type: always
+        config: {}
+    - from: DevOps Architect
+      to: Pipeline Documentation Writer
+      condition:
+        type: always
+        config: {}
+    - from: Pipeline Documentation Writer
+      to: FINAL
+      condition:
+        type: always
+        config: {}
+
+  start:
+    - USER

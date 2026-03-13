@@ -1,8 +1,8 @@
-# DevAll — Workflow Orchestration Platform
+# PowerSymphony — Multi-Agent AI Workflow Orchestration Platform
 
 ## Overview
 
-DevAll is a full-stack AI workflow orchestration platform. It lets you define multi-agent AI pipelines via YAML, execute them via a FastAPI backend, and visualize/manage them through a Vue 3 frontend.
+PowerSymphony is a full-stack multi-agent AI workflow orchestration platform. Define complex agent pipelines via YAML, execute them through a FastAPI backend, and manage everything via a Vue 3 frontend. Includes 10 major feature sets: multi-agent swarms, GitHub Copilot synergy, Mermaid visual debugging, real-time collaboration, CI/CD automation, domain-specific templates, live external APIs, model fine-tuning, a workflow marketplace, and full integration.
 
 ## Architecture
 
@@ -227,6 +227,122 @@ No API key required — uses `beautifulsoup4` + `requests`.
 | `yaml_instance/crm_lead_pipeline.yaml` | Research a lead → create HubSpot contact + deal |
 | `yaml_instance/cloud_deploy_pipeline.yaml` | Generate content → static site → deploy to cloud |
 | `yaml_instance/claude_example.yaml` | Simple Claude assistant |
+| `yaml_instance/dev_swarm.yaml` | 6-agent: Plan→Code→Test→Deploy full cycle |
+| `yaml_instance/code_review_swarm.yaml` | Multi-agent code review swarm |
+| `yaml_instance/qa_swarm.yaml` | QA testing swarm |
+| `yaml_instance/blockchain_builder.yaml` | Smart contract + dApp generator |
+| `yaml_instance/tourism_app.yaml` | Geo/tourism API builder |
+| `yaml_instance/fintech_api.yaml` | Financial data/payments API |
+| `yaml_instance/cicd_generator.yaml` | Describe project → CI/CD pipeline YAML |
+
+## Multi-Agent Swarm Workflows
+
+YAML templates that orchestrate 4–6 specialized agents in series/parallel.
+- `dev_swarm.yaml` — Tech Lead → Architect → Backend Dev → Frontend Dev → Test Engineer → DevOps
+- `code_review_swarm.yaml` — Security Analyst + Performance Analyst + Style Reviewer → Lead Reviewer
+- `qa_swarm.yaml` — Test Planner → Unit Tester + Integration Tester → QA Lead
+
+## GitHub Copilot Synergy
+
+REST API at `/api/github/*` and tool functions for AI agents to read/write GitHub repositories.
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/github/repos/{owner}` | List repos for owner |
+| `GET /api/github/repos/{owner}/{repo}/files` | List files in repo |
+| `GET /api/github/repos/{owner}/{repo}/file` | Read file content |
+| `POST /api/github/repos/{owner}/{repo}/file` | Write/update a file |
+| `POST /api/github/repos/{owner}/{repo}/pr` | Create a pull request |
+| `POST /api/github/repos/{owner}/{repo}/issue` | Create an issue |
+| `GET /api/github/search` | Search code across GitHub |
+
+**Required env var**: `GITHUB_TOKEN`
+
+## Mermaid Visual Debugging
+
+Live diagram editor at `/diagrams` with 4 modes: Live Editor, Generate from Description, Debug Flowchart, Sequence Diagram. Backend at `/api/diagrams/*`.
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/diagrams/generate` | AI → Mermaid from text description |
+| `POST /api/diagrams/debug` | Error + code → debug flowchart |
+| `POST /api/diagrams/sequence` | Scenario → sequence diagram |
+| `POST /api/diagrams/architecture` | System description → architecture diagram |
+| `GET /api/diagrams/examples` | Pre-built example diagrams |
+
+## Real-Time Collaboration
+
+WebSocket-based collaboration rooms at `/collaboration`. Users can join rooms, see active participants, and broadcast shared prompts.
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/collab/rooms` | List all active rooms |
+| `POST /api/collab/rooms` | Create a room |
+| `GET /api/collab/rooms/{id}` | Get room details + participants |
+| `POST /api/collab/rooms/{id}/broadcast` | Broadcast a message to room |
+| `WS /api/collab/rooms/{id}/ws` | WebSocket: join and receive live updates |
+| `DELETE /api/collab/rooms/{id}` | Delete a room |
+
+Rooms are in-memory (reset on server restart).
+
+## CI/CD Automation
+
+REST API at `/api/cicd/*` generates production-ready DevOps configs.
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/cicd/templates` | List all templates |
+| `POST /api/cicd/github-actions` | Generate GitHub Actions YAML |
+| `POST /api/cicd/dockerfile` | Generate Dockerfile |
+| `POST /api/cicd/docker-compose` | Generate docker-compose.yml |
+| `POST /api/cicd/aws-codepipeline` | Generate AWS CodePipeline config |
+
+Supports Python, Node.js, Go, Java, Rust. Deploy targets: Docker Hub, AWS ECR, GitHub Container Registry.
+
+## External API Integration (Live Data)
+
+Tool functions for real-time external data without any caching:
+
+| Function | Description |
+|----------|-------------|
+| `get_weather` | Real weather via OpenWeatherMap |
+| `get_crypto_price` | Live crypto prices (CoinGecko, no key) |
+| `get_news_headlines` | Breaking news via NewsAPI |
+| `get_stock_price` | Stock prices via Yahoo Finance |
+| `geocode_address` | Address → lat/lon (OpenStreetMap) |
+
+**Optional env vars**: `OPENWEATHERMAP_API_KEY`, `NEWSAPI_KEY`
+
+## Model Fine-Tuning
+
+REST API at `/api/fine-tune/*` wraps the OpenAI fine-tuning pipeline.
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/fine-tune/upload` | Upload JSONL training file |
+| `POST /api/fine-tune/create` | Start a fine-tuning job |
+| `GET /api/fine-tune/jobs` | List all fine-tuning jobs |
+| `GET /api/fine-tune/jobs/{id}` | Get job status |
+| `POST /api/fine-tune/jobs/{id}/cancel` | Cancel a job |
+
+**Required env var**: `OPENAI_API_KEY`
+
+## Workflow Marketplace
+
+Browse, publish, download, and rate community AI workflow templates at `/marketplace`. Backed by `WareHouse/.marketplace/listings.jsonl`.
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/marketplace` | Browse all listings (with search/filter) |
+| `GET /api/marketplace/featured` | Featured listings |
+| `GET /api/marketplace/categories` | All categories with counts |
+| `GET /api/marketplace/{id}` | Single listing detail |
+| `POST /api/marketplace` | Publish a new workflow |
+| `POST /api/marketplace/{id}/download` | Download YAML, increments count |
+| `POST /api/marketplace/{id}/rate` | Rate 1–5 stars |
+| `DELETE /api/marketplace/{id}` | Remove a listing |
+
+8 built-in seed listings across Blockchain, Development, DevOps, Finance, Travel, Testing categories.
 
 ## System Stats & Monitoring
 
