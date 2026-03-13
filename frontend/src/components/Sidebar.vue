@@ -1,26 +1,42 @@
 <template>
     <div class="sidebar">
+        <div class="sidebar-brand" @click="$router.push('/')">
+            <span class="brand-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="url(#brandGrad)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <defs><linearGradient id="brandGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#aaffcd"/><stop offset="100%" style="stop-color:#99eaf9"/></linearGradient></defs>
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                </svg>
+            </span>
+            <span class="brand-name">PowerSymphony</span>
+        </div>
 
         <nav class="sidebar-nav">
-            <router-link to="/missions" class="missions-link">Missions</router-link>
-            <router-link to="/">Home</router-link>
-            <router-link to="/tutorial">Tutorial</router-link>
-            <router-link
-                to="/workflows"
-                :class="{ active: isWorkflowsActive }"
-            >Workflows</router-link>
-            <router-link to="/launch" target="_blank" rel="noopener">Launch</router-link>
-            <router-link to="/batch-run" target="_blank" rel="noopener">Labaratory</router-link>
-            <router-link to="/orchestration">Orchestration</router-link>
-            <router-link to="/performance">Performance</router-link>
-            <router-link to="/marketplace">Marketplace</router-link>
-            <router-link to="/github">GitHub</router-link>
-            <router-link to="/diagrams">Diagrams</router-link>
-            <router-link to="/collaboration">Collab</router-link>
-            <router-link to="/cicd">CI/CD</router-link>
-            <router-link to="/fine-tuning">Fine-Tuning</router-link>
-            <router-link to="/system">System</router-link>
+            <router-link to="/missions" class="nav-link missions-link">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                Missions
+            </router-link>
+            <router-link to="/orchestration" class="nav-link">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.2 4.2l2.8 2.8M17 17l2.8 2.8M1 12h4M19 12h4M4.2 19.8l2.8-2.8M17 7l2.8-2.8"/></svg>
+                Orchestration
+            </router-link>
+            <router-link to="/workflows" :class="['nav-link', { active: isWorkflowsActive }]">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                Workflows
+            </router-link>
+            <router-link to="/marketplace" class="nav-link">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+                Marketplace
+            </router-link>
+            <router-link to="/performance" class="nav-link">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
+                Performance
+            </router-link>
+            <router-link to="/system" class="nav-link">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                System
+            </router-link>
         </nav>
+
         <div class="sidebar-actions">
             <button class="settings-nav-btn" @click="showSettingsModal = true" title="Settings">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -74,119 +90,138 @@ async function handleLogout() {
 <style scoped>
 .sidebar {
     width: 100%;
-    background-color: #1a1a1a; /* Dark theme background */
-    padding: 0 24px 0 0;
+    background: rgba(10,14,23,0.95);
+    backdrop-filter: blur(12px);
+    padding: 0 20px;
     box-sizing: border-box;
     display: flex;
     align-items: center;
-    height: 55px;
+    height: 56px;
     position: sticky;
     top: 0;
     z-index: 100;
-    border-bottom: 1px solid #4d4d4d;
-    position: relative; /* For absolute positioning of actions */
-    justify-content: center;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
 }
 
-.sidebar-actions {
-    position: absolute;
-    right: 24px;
-    top: 50%;
-    transform: translateY(-50%);
+.sidebar-brand {
     display: flex;
     align-items: center;
     gap: 8px;
+    cursor: pointer;
+    margin-right: 32px;
+    flex-shrink: 0;
+}
+
+.brand-icon {
+    display: flex;
+    align-items: center;
+}
+
+.brand-name {
+    font-size: 15px;
+    font-weight: 700;
+    background: linear-gradient(135deg, #aaffcd, #99eaf9);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: -0.3px;
 }
 
 .sidebar-nav {
     display: flex;
-    flex-direction: row;
-    gap: 24px;
+    gap: 4px;
     align-items: center;
-    /* Remove auto margins to let flexbox center it if parent has justify-content: center */
-    /* But since we just added justify-content: center to sidebar, we don't strictly need auto margins, 
-       but they don't hurt if we want to be safe. */
-    margin-left: auto;
-    margin-right: auto;
+    flex: 1;
 }
 
-.sidebar-nav a {
+.nav-link {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     text-decoration: none;
-    color: #8e8e8e;
+    color: #8b949e;
     font-weight: 500;
-    font-size: 14px;
+    font-size: 13px;
     font-family: 'Inter', sans-serif;
-    transition: color 0.2s ease;
+    padding: 7px 12px;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    white-space: nowrap;
 }
 
-.sidebar-nav a:hover {
-    color: #f2f2f2;
+.nav-link:hover {
+    color: #e6edf3;
+    background: rgba(255,255,255,0.05);
 }
 
-.sidebar-nav a.router-link-active,
-.sidebar-nav a.active {
-    background: linear-gradient(
-    90deg,
-    #aaffcd,
-    #99eaf9,
-    #a0c4ff
-    );
-    background-clip: text;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    -webkit-text-fill-color: transparent;
+.nav-link.router-link-active,
+.nav-link.active {
+    color: #e6edf3;
+    background: rgba(255,255,255,0.06);
+}
+
+.nav-link.missions-link.router-link-active {
+    background: rgba(46,160,67,0.12);
+    color: #3fb950;
+}
+
+.sidebar-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+    flex-shrink: 0;
 }
 
 .settings-nav-btn {
   background: transparent;
   border: none;
-  color: #8e8e8e;
+  color: #8b949e;
   cursor: pointer;
-  padding: 4px;
+  padding: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: color 0.2s ease;
+  border-radius: 8px;
+  transition: all 0.2s;
 }
 
 .settings-nav-btn:hover {
-  color: #f2f2f2;
+  color: #e6edf3;
+  background: rgba(255,255,255,0.05);
 }
 
 .user-menu {
   position: relative;
-  margin-left: 8px;
+  margin-left: 4px;
 }
 
 .user-btn {
   width: 32px;
   height: 32px;
-  border-radius: 50%;
+  border-radius: 10px;
   background: linear-gradient(135deg, #aaffcd, #99eaf9);
   color: #0d1117;
   border: none;
   font-weight: 700;
-  font-size: 14px;
+  font-size: 13px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: opacity 0.2s;
+  transition: all 0.2s;
 }
 
-.user-btn:hover {
-  opacity: 0.85;
-}
+.user-btn:hover { opacity: 0.85; transform: scale(1.05); }
 
 .user-dropdown {
   position: absolute;
-  top: 42px;
+  top: 44px;
   right: 0;
-  background: #1c2333;
-  border: 1px solid #2d3748;
-  border-radius: 8px;
+  background: #161b22;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
   min-width: 200px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
   z-index: 200;
   overflow: hidden;
 }
@@ -195,7 +230,7 @@ async function handleLogout() {
   padding: 12px 16px;
   color: #c9d1d9;
   font-size: 13px;
-  border-bottom: 1px solid #2d3748;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
   word-break: break-all;
 }
 
@@ -213,5 +248,12 @@ async function handleLogout() {
 
 .logout-btn:hover {
   background: rgba(248, 81, 73, 0.1);
+}
+
+@media (max-width: 900px) {
+  .nav-link svg { display: none; }
+  .sidebar-nav { gap: 2px; }
+  .nav-link { padding: 7px 8px; font-size: 12px; }
+  .brand-name { display: none; }
 }
 </style>

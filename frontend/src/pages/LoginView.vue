@@ -75,17 +75,18 @@ async function handleLogin() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #0d1117 0%, #161b22 50%, #0d1117 100%);
+  background: #0a0e17;
 }
 
 .auth-card {
-  background: #1c2333;
-  border: 1px solid #2d3748;
-  border-radius: 16px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 20px;
   padding: 48px 40px;
   width: 100%;
   max-width: 420px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 48px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(10px);
 }
 
 .auth-title {
@@ -127,9 +128,9 @@ async function handleLogin() {
 
 .form-group input {
   padding: 12px 14px;
-  background: #0d1117;
-  border: 1px solid #30363d;
-  border-radius: 8px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
   color: #e6edf3;
   font-size: 15px;
   outline: none;

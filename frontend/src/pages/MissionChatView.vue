@@ -19,23 +19,30 @@
               v-if="mission.status === 'awaiting_approval'"
               class="approve-btn"
               @click="approvePlan"
-            >Approve Plan</button>
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+              Approve Plan
+            </button>
           </div>
         </div>
 
         <div class="messages-container" ref="messagesContainer">
           <div v-if="loading" class="loading-state">
-            <span class="spinner"></span> Loading mission...
+            <div class="loading-dots">
+              <span></span><span></span><span></span>
+            </div>
+            <p>Loading mission...</p>
           </div>
 
           <div v-if="loadError" class="error-banner">{{ loadError }}</div>
 
-          <template v-else>
+          <template v-if="!loading && !loadError">
             <div
-              v-for="msg in messages"
+              v-for="(msg, idx) in messages"
               :key="msg.id"
               class="message"
-              :class="[msg.role, msg.agent_name]"
+              :class="[msg.role, { 'animate-in': idx >= animateFromIndex }]"
+              :style="{ animationDelay: idx >= animateFromIndex ? `${(idx - animateFromIndex) * 0.08}s` : '0s' }"
             >
               <div v-if="msg.role === 'user'" class="msg-row user-row">
                 <div class="msg-bubble user-bubble">
@@ -45,11 +52,10 @@
               </div>
 
               <div v-else-if="msg.role === 'agent'" class="msg-row agent-row">
-                <div
-                  class="msg-avatar agent-avatar"
-                  :style="{ background: msg.agent?.color || '#58a6ff' }"
-                >{{ msg.agent?.avatar || 'A' }}</div>
-                <div class="msg-bubble agent-bubble">
+                <div class="msg-avatar agent-avatar" :style="{ background: msg.agent?.color || '#58a6ff' }">
+                  {{ msg.agent?.avatar || 'A' }}
+                </div>
+                <div class="msg-bubble agent-bubble" :style="{ borderColor: (msg.agent?.color || '#58a6ff') + '20' }">
                   <div class="msg-agent-name" :style="{ color: msg.agent?.color || '#58a6ff' }">
                     {{ msg.agent?.name || msg.agent_name }}
                     <span class="agent-role">{{ msg.agent?.role }}</span>
@@ -66,7 +72,7 @@
               </div>
             </div>
 
-            <div v-if="sending" class="message agent">
+            <div v-if="sending" class="message agent animate-in">
               <div class="msg-row agent-row">
                 <div class="msg-avatar agent-avatar" style="background: #58a6ff">A</div>
                 <div class="msg-bubble agent-bubble">
@@ -80,7 +86,7 @@
         </div>
 
         <div class="input-area">
-          <div class="input-wrapper">
+          <div class="input-wrapper" :class="{ focused: inputFocused }">
             <textarea
               v-model="userInput"
               class="chat-input"
@@ -88,6 +94,8 @@
               rows="1"
               @keydown.enter.exact.prevent="sendMessage"
               @input="autoResize"
+              @focus="inputFocused = true"
+              @blur="inputFocused = false"
               ref="chatInput"
               :disabled="sending"
             ></textarea>
@@ -97,15 +105,15 @@
           </div>
           <div v-if="sendError" class="error-banner small">{{ sendError }}</div>
           <div class="input-hints">
-            <span v-if="mission?.status === 'gathering_info'">Answer the team leader's questions, or say "Go ahead" to start planning</span>
-            <span v-else-if="mission?.status === 'awaiting_approval'">Review the plan and say "Approve" or ask for changes</span>
+            <span v-if="mission?.status === 'gathering_info'">Answer the team's questions, or say <strong>"Go ahead"</strong> to start planning</span>
+            <span v-else-if="mission?.status === 'awaiting_approval'">Review the plan above, then say <strong>"Approve"</strong> or request changes</span>
             <span v-else-if="mission?.status === 'executing'">Your team is working. Ask for updates anytime.</span>
           </div>
         </div>
       </div>
 
       <div class="team-panel" :class="{ collapsed: teamPanelCollapsed }">
-        <button class="panel-toggle" @click="teamPanelCollapsed = !teamPanelCollapsed">
+        <button class="panel-toggle" @click="teamPanelCollapsed = !teamPanelCollapsed" :title="teamPanelCollapsed ? 'Show team' : 'Hide team'">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline :points="teamPanelCollapsed ? '9 18 15 12 9 6' : '15 18 9 12 15 6'"/>
           </svg>
@@ -113,10 +121,10 @@
         <div class="panel-content" v-if="!teamPanelCollapsed">
           <h3 class="panel-title">Your AI Team</h3>
           <div class="team-list">
-            <div v-for="agent in teamAgents" :key="agent.id" class="team-member">
+            <div v-for="agent in teamAgents" :key="agent.id" class="team-member" :class="{ active: agentHasSpoken(agent.id) }">
               <div class="member-avatar" :style="{ background: agent.color }">{{ agent.avatar }}</div>
               <div class="member-info">
-                <div class="member-name">{{ agent.name }}</div>
+                <div class="member-name">{{ agent.name.split('—')[0].trim() }}</div>
                 <div class="member-role">{{ agent.role }}</div>
               </div>
               <div class="member-status-dot" :class="agentStatus(agent.id)"></div>
@@ -125,25 +133,34 @@
 
           <div v-if="mission?.plan" class="plan-summary">
             <h3 class="panel-title">Mission Plan</h3>
-            <div class="plan-timeline">
-              <div class="plan-meta">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                {{ mission.plan.timeline }}
-              </div>
-              <div
-                v-for="(phase, i) in mission.plan.phases || []"
-                :key="i"
-                class="plan-phase"
-              >
-                <div class="phase-marker">
-                  <div class="phase-dot" :class="{ active: mission.status === 'executing' && i === 0, done: false }"></div>
+            <div class="plan-meta-row">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <span>{{ mission.plan.timeline }}</span>
+            </div>
+            <div class="plan-phases">
+              <div v-for="(phase, i) in mission.plan.phases || []" :key="i" class="phase-item">
+                <div class="phase-marker-wrap">
+                  <div class="phase-dot" :class="{ active: mission.status === 'executing' && i === 0 }"></div>
                   <div v-if="i < (mission.plan.phases || []).length - 1" class="phase-line"></div>
                 </div>
-                <div class="phase-content">
+                <div class="phase-detail">
                   <div class="phase-name">{{ phase.name }}</div>
                   <div class="phase-duration">{{ phase.duration }}</div>
+                  <div class="phase-assignees">
+                    <div v-for="aId in (phase.assigned_to || []).slice(0, 3)" :key="aId" class="phase-avatar" :style="{ background: getAgentColor(aId) }">
+                      {{ getAgentAvatar(aId) }}
+                    </div>
+                  </div>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <div v-if="mission?.plan?.risks" class="risks-section">
+            <h3 class="panel-title">Risks</h3>
+            <div v-for="(risk, i) in mission.plan.risks.slice(0, 3)" :key="i" class="risk-item">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#f0883e" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <span>{{ risk }}</span>
             </div>
           </div>
         </div>
@@ -166,14 +183,23 @@ const userInput = ref('')
 const teamPanelCollapsed = ref(false)
 const messagesContainer = ref(null)
 const chatInput = ref(null)
-
+const inputFocused = ref(false)
 const teamAgents = ref([])
+const animateFromIndex = ref(0)
+const loadError = ref('')
+const sendError = ref('')
+
+const agentMap = computed(() => {
+  const map = {}
+  teamAgents.value.forEach(a => { map[a.id] = a })
+  return map
+})
 
 const inputPlaceholder = computed(() => {
   if (!mission.value) return 'Type a message...'
   const s = mission.value.status
-  if (s === 'gathering_info') return 'Answer the questions or say "Go ahead" to start planning...'
-  if (s === 'awaiting_approval') return 'Say "Approve" to start, or suggest changes...'
+  if (s === 'gathering_info') return 'Answer the questions or say "Go ahead"...'
+  if (s === 'awaiting_approval') return 'Say "Approve" or suggest changes...'
   if (s === 'executing') return 'Ask for a progress update...'
   return 'Type a message...'
 })
@@ -181,8 +207,6 @@ const inputPlaceholder = computed(() => {
 onMounted(async () => {
   await Promise.all([loadMission(), loadTeam()])
 })
-
-const loadError = ref('')
 
 async function loadMission() {
   const id = route.params.id
@@ -198,6 +222,7 @@ async function loadMission() {
     mission.value = await mRes.json()
     const msgData = await msgRes.json()
     messages.value = msgData.messages || []
+    animateFromIndex.value = messages.value.length
     await nextTick()
     scrollToBottom()
   } catch (e) {
@@ -211,14 +236,14 @@ async function loadMission() {
 async function loadTeam() {
   try {
     const res = await fetch('/api/missions/team/agents')
-    const data = await res.json()
-    teamAgents.value = data.agents || []
+    if (res.ok) {
+      const data = await res.json()
+      teamAgents.value = data.agents || []
+    }
   } catch (e) {
     console.error('Failed to load team:', e)
   }
 }
-
-const sendError = ref('')
 
 async function sendMessage() {
   if (!userInput.value.trim() || sending.value) return
@@ -226,12 +251,14 @@ async function sendMessage() {
   userInput.value = ''
   sendError.value = ''
 
+  const prevLen = messages.value.length
   const optimisticMsg = {
     id: Date.now(),
     role: 'user',
     content,
     created_at: new Date().toISOString()
   }
+  animateFromIndex.value = prevLen
   messages.value.push(optimisticMsg)
   await nextTick()
   scrollToBottom()
@@ -247,6 +274,7 @@ async function sendMessage() {
       messages.value = messages.value.filter(m => m.id !== optimisticMsg.id)
       throw new Error(`Failed to send (${res.status})`)
     }
+    animateFromIndex.value = prevLen + 1
     await loadMission()
   } catch (e) {
     console.error('Failed to send message:', e)
@@ -262,6 +290,7 @@ async function approvePlan() {
   try {
     const res = await fetch(`/api/missions/${route.params.id}/approve`, { method: 'POST' })
     if (!res.ok) throw new Error(`Failed to approve (${res.status})`)
+    animateFromIndex.value = messages.value.length
     await loadMission()
   } catch (e) {
     console.error('Failed to approve plan:', e)
@@ -281,31 +310,27 @@ function autoResize(e) {
   el.style.height = Math.min(el.scrollHeight, 120) + 'px'
 }
 
-function agentStatus(agentId) {
-  if (!mission.value) return 'idle'
-  if (mission.value.status === 'executing') return 'active'
-  if (mission.value.status === 'planning') return 'thinking'
-  return 'idle'
+function agentHasSpoken(agentId) {
+  return messages.value.some(m => m.agent_name === agentId)
 }
 
+function agentStatus(agentId) {
+  if (!mission.value) return 'idle'
+  if (mission.value.status === 'executing') return agentHasSpoken(agentId) ? 'active' : 'idle'
+  if (mission.value.status === 'planning') return 'thinking'
+  return agentHasSpoken(agentId) ? 'spoke' : 'idle'
+}
+
+function getAgentColor(id) { return agentMap.value[id]?.color || '#58a6ff' }
+function getAgentAvatar(id) { return agentMap.value[id]?.avatar || '?' }
+
 function statusLabel(s) {
-  const labels = {
-    gathering_info: 'Gathering Info',
-    planning: 'Planning',
-    awaiting_approval: 'Awaiting Approval',
-    executing: 'Executing',
-    completed: 'Completed'
-  }
-  return labels[s] || s
+  return { gathering_info: 'Gathering Info', planning: 'Planning', awaiting_approval: 'Awaiting Approval', executing: 'Executing', completed: 'Completed' }[s] || s
 }
 
 function renderMarkdown(text) {
   if (!text) return ''
-  let html = text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-
+  let html = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   html = html.replace(/^## (.+)$/gm, '<h3 class="md-h2">$1</h3>')
   html = html.replace(/^### (.+)$/gm, '<h4 class="md-h3">$1</h4>')
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
@@ -322,9 +347,10 @@ function renderMarkdown(text) {
 
 <style scoped>
 .mission-chat-page {
-  height: calc(100vh - 55px);
-  background: #0d1117;
+  height: calc(100vh - var(--topbar-h, 56px));
+  background: #0a0e17;
   overflow: hidden;
+  font-family: 'Inter', sans-serif;
 }
 
 .chat-layout {
@@ -343,10 +369,11 @@ function renderMarkdown(text) {
   display: flex;
   align-items: center;
   padding: 12px 20px;
-  border-bottom: 1px solid #21262d;
-  background: #161b22;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.02);
   gap: 16px;
   flex-shrink: 0;
+  backdrop-filter: blur(10px);
 }
 
 .back-link {
@@ -359,17 +386,14 @@ function renderMarkdown(text) {
   cursor: pointer;
   font-size: 13px;
   padding: 6px 10px;
-  border-radius: 6px;
+  border-radius: 8px;
   transition: all 0.2s;
   white-space: nowrap;
 }
 
-.back-link:hover { color: #e6edf3; background: #21262d; }
+.back-link:hover { color: #e6edf3; background: rgba(255,255,255,0.05); }
 
-.header-center {
-  flex: 1;
-  min-width: 0;
-}
+.header-center { flex: 1; min-width: 0; }
 
 .mission-goal-title {
   font-size: 15px;
@@ -405,20 +429,24 @@ function renderMarkdown(text) {
 .header-actions { flex-shrink: 0; }
 
 .approve-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   padding: 8px 20px;
   background: linear-gradient(135deg, #238636, #2ea043);
   color: #fff;
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.3s;
+  box-shadow: 0 2px 10px rgba(46,160,67,0.25);
 }
 
 .approve-btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(46, 160, 67, 0.3);
+  box-shadow: 0 4px 16px rgba(46,160,67,0.35);
 }
 
 .messages-container {
@@ -427,42 +455,64 @@ function renderMarkdown(text) {
   padding: 24px 20px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
+  scroll-behavior: smooth;
 }
 
 .loading-state {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 12px;
   color: #8b949e;
-  padding: 40px;
+  padding: 60px;
+}
+
+.loading-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.loading-dots span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #30363d;
+  animation: loadBounce 1.4s ease-in-out infinite;
+}
+
+.loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+.loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes loadBounce {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40% { transform: scale(1); opacity: 1; }
+}
+
+.message.animate-in {
+  animation: slideIn 0.4s ease-out both;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .msg-row {
   display: flex;
   gap: 10px;
-  max-width: 85%;
+  max-width: 82%;
 }
 
-.user-row {
-  margin-left: auto;
-  flex-direction: row;
-}
-
-.agent-row {
-  margin-right: auto;
-}
-
-.system-row {
-  margin: 0 auto;
-  max-width: 100%;
-}
+.user-row { margin-left: auto; }
+.agent-row { margin-right: auto; }
+.system-row { margin: 4px auto; max-width: 100%; }
 
 .msg-avatar {
   width: 34px;
   height: 34px;
-  border-radius: 50%;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -474,75 +524,50 @@ function renderMarkdown(text) {
 .user-avatar {
   background: linear-gradient(135deg, #aaffcd, #99eaf9);
   color: #0d1117;
+  border-radius: 12px;
 }
 
-.agent-avatar {
-  color: #fff;
-}
+.agent-avatar { color: #fff; border-radius: 12px; }
 
 .msg-bubble {
-  padding: 12px 16px;
-  border-radius: 16px;
-  line-height: 1.5;
+  padding: 14px 18px;
+  border-radius: 18px;
+  line-height: 1.55;
   font-size: 14px;
 }
 
 .user-bubble {
-  background: #1f6feb;
+  background: linear-gradient(135deg, #1f6feb, #388bfd);
   color: #fff;
-  border-bottom-right-radius: 4px;
+  border-bottom-right-radius: 6px;
+  box-shadow: 0 2px 12px rgba(31,111,235,0.2);
 }
 
 .agent-bubble {
-  background: #161b22;
-  border: 1px solid #21262d;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
   color: #c9d1d9;
-  border-bottom-left-radius: 4px;
+  border-bottom-left-radius: 6px;
 }
 
 .msg-agent-name {
   font-size: 13px;
   font-weight: 700;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 
 .agent-role {
   font-weight: 400;
   font-size: 11px;
-  opacity: 0.6;
+  opacity: 0.5;
   margin-left: 6px;
 }
 
-.msg-content :deep(.md-h2) {
-  font-size: 16px;
-  color: #e6edf3;
-  margin: 10px 0 6px;
-}
-
-.msg-content :deep(.md-h3) {
-  font-size: 14px;
-  color: #e6edf3;
-  margin: 8px 0 4px;
-}
-
-.msg-content :deep(.md-li) {
-  padding-left: 16px;
-  position: relative;
-  margin: 3px 0;
-}
-
-.msg-content :deep(.md-li::before) {
-  content: '•';
-  position: absolute;
-  left: 4px;
-  color: #484f58;
-}
-
-.msg-content :deep(.md-hr) {
-  border: none;
-  border-top: 1px solid #30363d;
-  margin: 12px 0;
-}
+.msg-content :deep(.md-h2) { font-size: 16px; color: #e6edf3; margin: 12px 0 6px; font-weight: 700; }
+.msg-content :deep(.md-h3) { font-size: 14px; color: #e6edf3; margin: 10px 0 4px; font-weight: 600; }
+.msg-content :deep(.md-li) { padding-left: 16px; position: relative; margin: 4px 0; }
+.msg-content :deep(.md-li::before) { content: ''; position: absolute; left: 4px; top: 9px; width: 4px; height: 4px; border-radius: 50%; background: #484f58; }
+.msg-content :deep(.md-hr) { border: none; border-top: 1px solid rgba(255,255,255,0.08); margin: 14px 0; }
 
 .system-msg {
   display: flex;
@@ -550,55 +575,48 @@ function renderMarkdown(text) {
   gap: 6px;
   color: #8b949e;
   font-size: 13px;
-  background: #161b2266;
+  background: rgba(255,255,255,0.02);
   padding: 8px 16px;
   border-radius: 20px;
-  border: 1px solid #21262d;
+  border: 1px solid rgba(255,255,255,0.04);
 }
 
-.typing-indicator {
-  display: flex;
-  gap: 4px;
-  padding: 4px 0;
-}
-
+.typing-indicator { display: flex; gap: 4px; padding: 4px 0; }
 .typing-indicator span {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #484f58;
+  width: 7px; height: 7px; border-radius: 50%; background: #484f58;
   animation: typing 1.2s ease-in-out infinite;
 }
-
 .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
 .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
 
 @keyframes typing {
-  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.3; }
   30% { transform: translateY(-5px); opacity: 1; }
 }
 
 .input-area {
   padding: 16px 20px;
-  border-top: 1px solid #21262d;
-  background: #161b22;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.02);
   flex-shrink: 0;
+  backdrop-filter: blur(10px);
 }
 
 .input-wrapper {
   display: flex;
   gap: 8px;
   align-items: flex-end;
-  background: #0d1117;
-  border: 1px solid #30363d;
-  border-radius: 12px;
-  padding: 8px 12px;
-  transition: border-color 0.2s;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px;
+  padding: 10px 14px;
+  transition: all 0.3s;
 }
 
-.input-wrapper:focus-within {
-  border-color: #58a6ff;
-  box-shadow: 0 0 0 3px rgba(88,166,255,0.1);
+.input-wrapper.focused {
+  border-color: rgba(88,166,255,0.4);
+  box-shadow: 0 0 0 3px rgba(88,166,255,0.08);
+  background: rgba(255,255,255,0.04);
 }
 
 .chat-input {
@@ -612,7 +630,7 @@ function renderMarkdown(text) {
   min-height: 24px;
   max-height: 120px;
   outline: none;
-  padding: 4px 0;
+  padding: 2px 0;
 }
 
 .chat-input::placeholder { color: #484f58; }
@@ -621,89 +639,103 @@ function renderMarkdown(text) {
   background: linear-gradient(135deg, #238636, #2ea043);
   border: none;
   color: #fff;
-  width: 34px;
-  height: 34px;
-  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  transition: all 0.3s;
   flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(46,160,67,0.2);
 }
 
-.send-btn:hover:not(:disabled) { transform: scale(1.05); }
-.send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.send-btn:hover:not(:disabled) { transform: scale(1.05); box-shadow: 0 4px 12px rgba(46,160,67,0.3); }
+.send-btn:disabled { opacity: 0.3; cursor: not-allowed; box-shadow: none; }
 
 .input-hints {
   text-align: center;
   color: #484f58;
   font-size: 12px;
-  margin-top: 6px;
+  margin-top: 8px;
 }
 
+.input-hints strong { color: #8b949e; }
+
+.error-banner {
+  color: #f85149;
+  background: rgba(248,81,73,0.08);
+  border: 1px solid rgba(248,81,73,0.2);
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  text-align: center;
+}
+
+.error-banner.small { padding: 6px 12px; margin-top: 6px; font-size: 12px; }
+
 .team-panel {
-  width: 280px;
-  border-left: 1px solid #21262d;
-  background: #161b22;
+  width: 300px;
+  border-left: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.02);
   flex-shrink: 0;
   position: relative;
-  transition: width 0.2s;
+  transition: width 0.3s;
   overflow-y: auto;
 }
 
-.team-panel.collapsed { width: 36px; }
+.team-panel.collapsed { width: 40px; }
 
 .panel-toggle {
   position: absolute;
-  top: 12px;
-  left: 8px;
+  top: 14px;
+  left: 10px;
   background: none;
   border: none;
   color: #8b949e;
   cursor: pointer;
   padding: 4px;
   z-index: 1;
+  transition: color 0.2s;
 }
 
 .panel-toggle:hover { color: #e6edf3; }
 
-.panel-content {
-  padding: 16px;
-  padding-top: 40px;
-}
+.panel-content { padding: 16px; padding-top: 44px; }
 
 .panel-title {
-  font-size: 12px;
+  font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 1px;
-  color: #8b949e;
-  margin: 0 0 12px 0;
-  font-weight: 600;
+  letter-spacing: 1.2px;
+  color: #484f58;
+  margin: 0 0 14px;
+  font-weight: 700;
 }
 
 .team-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 24px;
+  gap: 4px;
+  margin-bottom: 28px;
 }
 
 .team-member {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px;
-  border-radius: 8px;
-  transition: background 0.2s;
+  padding: 8px 10px;
+  border-radius: 10px;
+  transition: all 0.2s;
 }
 
-.team-member:hover { background: #21262d; }
+.team-member:hover { background: rgba(255,255,255,0.04); }
+.team-member.active { background: rgba(255,255,255,0.03); }
 
 .member-avatar {
   width: 30px;
   height: 30px;
-  border-radius: 50%;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -714,23 +746,8 @@ function renderMarkdown(text) {
 }
 
 .member-info { flex: 1; min-width: 0; }
-
-.member-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: #e6edf3;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.member-role {
-  font-size: 11px;
-  color: #8b949e;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
+.member-name { font-size: 13px; font-weight: 600; color: #e6edf3; }
+.member-role { font-size: 11px; color: #484f58; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .member-status-dot {
   width: 8px;
@@ -739,33 +756,31 @@ function renderMarkdown(text) {
   flex-shrink: 0;
 }
 
-.member-status-dot.idle { background: #30363d; }
+.member-status-dot.idle { background: #21262d; }
+.member-status-dot.spoke { background: #30363d; }
 .member-status-dot.thinking { background: #f0883e; animation: pulse 1.5s ease-in-out infinite; }
 .member-status-dot.active { background: #3fb950; animation: pulse 1.5s ease-in-out infinite; }
 
-.plan-summary { margin-top: 8px; }
+.plan-summary { margin-bottom: 24px; }
 
-.plan-timeline { display: flex; flex-direction: column; gap: 0; }
-
-.plan-meta {
+.plan-meta-row {
   display: flex;
   align-items: center;
   gap: 6px;
   color: #8b949e;
   font-size: 13px;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
-.plan-phase {
-  display: flex;
-  gap: 10px;
-}
+.plan-phases { display: flex; flex-direction: column; }
 
-.phase-marker {
+.phase-item { display: flex; gap: 10px; }
+
+.phase-marker-wrap {
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: 12px;
+  width: 14px;
   flex-shrink: 0;
 }
 
@@ -773,68 +788,55 @@ function renderMarkdown(text) {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  border: 2px solid #30363d;
+  border: 2px solid #21262d;
   background: transparent;
   flex-shrink: 0;
 }
 
-.phase-dot.active { border-color: #3fb950; background: #3fb950; }
-.phase-dot.done { border-color: #8b949e; background: #8b949e; }
+.phase-dot.active { border-color: #3fb950; background: #3fb950; box-shadow: 0 0 8px rgba(63,185,80,0.4); }
 
-.phase-line {
-  width: 2px;
-  flex: 1;
-  background: #21262d;
-  min-height: 20px;
+.phase-line { width: 2px; flex: 1; background: #21262d; min-height: 20px; }
+
+.phase-detail { padding-bottom: 16px; }
+.phase-name { font-size: 13px; font-weight: 600; color: #c9d1d9; line-height: 1.3; }
+.phase-duration { font-size: 11px; color: #484f58; margin-top: 2px; }
+
+.phase-assignees {
+  display: flex;
+  margin-top: 6px;
 }
 
-.phase-content {
-  padding-bottom: 16px;
+.phase-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 9px;
+  color: #fff;
+  border: 2px solid #0a0e17;
+  margin-right: -4px;
 }
 
-.phase-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: #c9d1d9;
-  line-height: 1.3;
-}
+.risks-section { margin-bottom: 20px; }
 
-.phase-duration {
-  font-size: 11px;
+.risk-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12px;
   color: #8b949e;
-  margin-top: 2px;
+  margin-bottom: 8px;
+  line-height: 1.4;
 }
 
-.spinner {
-  display: inline-block;
-  width: 16px;
-  height: 16px;
-  border: 2px solid rgba(255,255,255,0.2);
-  border-top-color: #58a6ff;
-  border-radius: 50%;
-  animation: spin 0.6s linear infinite;
-}
+.risk-item svg { flex-shrink: 0; margin-top: 1px; }
 
-@keyframes spin { to { transform: rotate(360deg); } }
 @keyframes pulse {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
-}
-
-.error-banner {
-  color: #f85149;
-  background: rgba(248, 81, 73, 0.1);
-  border: 1px solid rgba(248, 81, 73, 0.3);
-  padding: 10px 16px;
-  border-radius: 8px;
-  font-size: 13px;
-  text-align: center;
-}
-
-.error-banner.small {
-  padding: 6px 12px;
-  margin-top: 6px;
-  font-size: 12px;
+  50% { opacity: 0.3; }
 }
 
 @media (max-width: 768px) {

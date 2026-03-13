@@ -20,7 +20,9 @@ PowerSymphony is a full-stack multi-agent AI workflow orchestration SaaS platfor
 - Built with Vue 3 + Vite, residing in the `frontend/` directory.
 - Serves as the primary user interface for defining, managing, and monitoring AI workflows.
 - Features include a performance dashboard, system statistics, and a workflow marketplace.
-- UI/UX includes agent cards, trend charts, and a sidebar for navigation.
+- **Design System**: Dark theme (`#0a0e17` background), glassmorphism cards (`rgba(255,255,255,0.03)` + `backdrop-filter: blur(10px)`), gradient accents (`#aaffcd/#99eaf9/#a0c4ff`), Inter font. CSS variable `--topbar-h: 56px` controls header height across all pages.
+- **Key Pages**: HomeView (Mission Command Center with stats/team/capabilities), MissionsView (mission list + creation with 12 templates in 4 categories), MissionChatView (conversational AI chat with team panel + plan phases), LoginView/SignupView (glassmorphism auth forms).
+- **Sidebar**: Horizontal top nav bar with brand logo, nav links with icons, settings gear, user avatar with dropdown.
 
 **Backend**:
 - Developed with FastAPI and uvicorn/gunicorn, located in the `server/` directory.

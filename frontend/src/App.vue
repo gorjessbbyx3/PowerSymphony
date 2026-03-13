@@ -28,15 +28,11 @@ const showSidebar = computed(() =>
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  background: #0a0e17;
 }
 
 .main-content {
   flex: 1;
-  background-color: white;
-}
-
-body {
-  margin: 0;
-  font-family: system-ui, sans-serif;
+  background: #0a0e17;
 }
 </style>
