@@ -100,6 +100,73 @@ Workflow sessions are now persisted to disk in `WareHouse/.sessions/` as JSON fi
 - Active sessions: available via `GET /api/sessions`
 - Historical sessions: also returned under `.historical` key
 
+## Data Scraping
+
+Web scraping is available as both **agent tool functions** (use in YAML workflows) and **REST API endpoints**.
+
+### Tool functions (YAML `tools:` section)
+| Function | Description |
+|----------|-------------|
+| `scrape_url` | Scrape a URL → title + main text. Optional CSS selector |
+| `scrape_links` | Extract all hyperlinks from a page |
+| `scrape_table` | Extract an HTML table as CSV |
+| `extract_structured_data` | Extract fields using CSS selectors (JSON schema) |
+| `batch_scrape` | Scrape up to 20 URLs concurrently |
+
+### REST API (`/api/scrape/*`)
+`POST /api/scrape/url` • `POST /api/scrape/links` • `POST /api/scrape/table` • `POST /api/scrape/extract` • `POST /api/scrape/batch`
+
+No API key required — uses `beautifulsoup4` + `requests`.
+
+## CRM Integration (HubSpot)
+
+### Tool functions
+| Function | Description |
+|----------|-------------|
+| `crm_search_contacts` | Search contacts by name/email |
+| `crm_create_contact` | Create a new contact |
+| `crm_update_contact` | Update contact properties |
+| `crm_list_deals` | List deals (optionally by pipeline) |
+| `crm_create_deal` | Create a deal and optionally link a contact |
+| `crm_log_activity` | Log a note, call, or email against a contact |
+
+### REST API (`/api/crm/*`)
+`GET /api/crm/status` • `GET /api/crm/contacts/search?q=` • `POST /api/crm/contacts` • `PATCH /api/crm/contacts/{id}` • `GET /api/crm/deals` • `POST /api/crm/deals` • `POST /api/crm/contacts/{id}/activities`
+
+**Required env var**: `HUBSPOT_API_KEY` or `HUBSPOT_ACCESS_TOKEN` (Private App token from HubSpot).
+
+### Example workflow: `yaml_instance/crm_lead_pipeline.yaml`
+
+## Cloud Deployments
+
+### Tool functions
+| Function | Description |
+|----------|-------------|
+| `deploy_to_s3` | Upload a file to AWS S3 |
+| `deploy_to_gcs` | Upload a file to Google Cloud Storage |
+| `deploy_to_github_release` | Create a GitHub Release with optional asset |
+| `generate_static_site` | Build a static HTML site from Markdown |
+| `list_deployment_history` | View past deployments (stored in `WareHouse/.deployments.jsonl`) |
+
+### REST API (`/api/deploy/*`)
+`GET /api/deploy/status` • `POST /api/deploy/s3` • `POST /api/deploy/gcs` • `POST /api/deploy/github-release` • `POST /api/deploy/generate-site` • `GET /api/deploy/history`
+
+**Required env vars** (see `.env.example` for details):
+- S3: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`
+- GCS: `GOOGLE_APPLICATION_CREDENTIALS`
+- GitHub: `GITHUB_TOKEN`
+
+### Example workflow: `yaml_instance/cloud_deploy_pipeline.yaml`
+
+## Example Workflows
+
+| File | Description |
+|------|-------------|
+| `yaml_instance/scraping_pipeline.yaml` | Scrape URLs → AI research report |
+| `yaml_instance/crm_lead_pipeline.yaml` | Research a lead → create HubSpot contact + deal |
+| `yaml_instance/cloud_deploy_pipeline.yaml` | Generate content → static site → deploy to cloud |
+| `yaml_instance/claude_example.yaml` | Simple Claude assistant |
+
 ## System Stats & Monitoring
 
 A new **System** page is available at `/system` in the frontend sidebar.

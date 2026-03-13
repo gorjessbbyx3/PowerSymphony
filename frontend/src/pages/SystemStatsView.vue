@@ -101,6 +101,53 @@
       </section>
     </div>
 
+    <!-- Integration status -->
+    <div class="stats-grid" v-if="integrations">
+      <section class="card">
+        <h2>Data Scraping</h2>
+        <div class="metric-list">
+          <div class="metric"><span class="metric-key">Endpoints</span><span class="metric-val">/api/scrape/*</span></div>
+          <div class="metric"><span class="metric-key">Agent tools</span><span class="metric-val">scrape_url, batch_scrape, scrape_links, scrape_table, extract_structured_data</span></div>
+        </div>
+        <p class="hint">No API key required — uses BeautifulSoup + requests.</p>
+      </section>
+
+      <section class="card">
+        <h2>CRM — HubSpot</h2>
+        <div class="check-list">
+          <div class="check-row" :class="integrations.crm?.configured ? 'ok' : 'error'">
+            <span class="check-key">API Key</span>
+            <span class="check-val">{{ integrations.crm?.configured ? 'Configured' : 'Not set (HUBSPOT_API_KEY)' }}</span>
+          </div>
+        </div>
+        <div class="metric-list" style="margin-top:10px">
+          <div class="metric"><span class="metric-key">Endpoints</span><span class="metric-val">/api/crm/*</span></div>
+          <div class="metric"><span class="metric-key">Agent tools</span><span class="metric-val">crm_search_contacts, crm_create_contact, crm_create_deal, crm_log_activity</span></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Cloud Deployments</h2>
+        <div class="check-list">
+          <div class="check-row" :class="integrations.deploy?.s3?.configured ? 'ok' : 'error'">
+            <span class="check-key">AWS S3</span>
+            <span class="check-val">{{ integrations.deploy?.s3?.configured ? 'Configured' : 'Not set' }}</span>
+          </div>
+          <div class="check-row" :class="integrations.deploy?.gcs?.configured ? 'ok' : 'error'">
+            <span class="check-key">Google Cloud Storage</span>
+            <span class="check-val">{{ integrations.deploy?.gcs?.configured ? 'Configured' : 'Not set' }}</span>
+          </div>
+          <div class="check-row" :class="integrations.deploy?.github?.configured ? 'ok' : 'error'">
+            <span class="check-key">GitHub Releases</span>
+            <span class="check-val">{{ integrations.deploy?.github?.configured ? 'Configured' : 'Not set' }}</span>
+          </div>
+        </div>
+        <div class="metric-list" style="margin-top:10px">
+          <div class="metric"><span class="metric-key">Deployments logged</span><span class="metric-val">{{ deployCount }}</span></div>
+        </div>
+      </section>
+    </div>
+
     <!-- Session history -->
     <section class="card history-card" v-if="history && Object.keys(history).length">
       <h2>Past Sessions (disk)</h2>
@@ -134,6 +181,8 @@ import { ref, onMounted } from 'vue'
 const stats = ref(null)
 const health = ref(null)
 const history = ref(null)
+const integrations = ref(null)
+const deployCount = ref(0)
 const loading = ref(false)
 const clearing = ref(false)
 const error = ref(null)
@@ -142,12 +191,26 @@ async function loadStats() {
   loading.value = true
   error.value = null
   try {
-    const [statsRes, healthRes] = await Promise.all([
+    const [statsRes, healthRes, crmRes, deployRes] = await Promise.all([
       fetch('/api/system/stats'),
       fetch('/api/system/health/detailed'),
+      fetch('/api/crm/status'),
+      fetch('/api/deploy/status'),
     ])
     stats.value = await statsRes.json()
     health.value = await healthRes.json()
+
+    const crmData = crmRes.ok ? await crmRes.json() : null
+    const deployData = deployRes.ok ? await deployRes.json() : null
+    integrations.value = { crm: crmData, deploy: deployData?.providers }
+
+    // load deploy history count
+    const histRes = await fetch('/api/deploy/history?limit=1000')
+    if (histRes.ok) {
+      const h = await histRes.json()
+      deployCount.value = (h.deployments || []).length
+    }
+
     const sessRes = await fetch('/api/sessions')
     if (sessRes.ok) {
       const sessData = await sessRes.json()

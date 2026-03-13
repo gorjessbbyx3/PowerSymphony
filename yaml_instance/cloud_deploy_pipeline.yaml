@@ -1,0 +1,59 @@
+version: 0.1.0
+vars: {}
+graph:
+  id: cloud_deploy_pipeline
+  description: >
+    An end-to-end pipeline that generates content or a report, builds
+    a static HTML site from it, and deploys it to cloud storage.
+    Supports AWS S3, Google Cloud Storage, and GitHub Releases.
+  log_level: INFO
+  start:
+    - Content Generator
+  nodes:
+    - id: Content Generator
+      type: agent
+      description: Generates Markdown content based on the task.
+      config:
+        provider: openai
+        name: gpt-4o
+        api_key: ${API_KEY}
+        role: |
+          You are a technical content writer.
+          Given the task, write a comprehensive and well-structured Markdown document.
+          Include sections, bullet points, code blocks where relevant, and a conclusion.
+          Output ONLY the Markdown content — no preamble, no explanation.
+        params:
+          max_tokens: 8192
+          temperature: 0.4
+      edges:
+        - target: Site Builder
+          condition: always
+
+    - id: Site Builder
+      type: agent
+      description: Converts Markdown content into a static HTML site and deploys it.
+      config:
+        provider: openai
+        name: gpt-4o-mini
+        api_key: ${API_KEY}
+        role: |
+          You are a DevOps agent. Your job is:
+          1. Use generate_static_site to build an HTML page from the Markdown content.
+          2. Choose the appropriate deployment target based on the original task:
+             - If AWS S3 credentials are configured: use deploy_to_s3
+             - If GCS credentials are configured: use deploy_to_gcs
+             - Otherwise: use deploy_to_github_release
+          3. Report the public URL of the deployed site and the deployment record ID.
+          Check deployment status first using list_deployment_history to avoid duplicate deploys.
+        params:
+          max_tokens: 4096
+          temperature: 0.0
+        tools:
+          - name: generate_static_site
+          - name: deploy_to_s3
+          - name: deploy_to_gcs
+          - name: deploy_to_github_release
+          - name: list_deployment_history
+      edges:
+        - target: __end__
+          condition: always
