@@ -27,3 +27,7 @@ pygame>=2.6.1
 filelock>=3.20.1
 markdown>=3.10
 xhtml2pdf>=0.2.17
+bcrypt
+gunicorn
+psycopg2-binary
+PyJWT

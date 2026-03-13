@@ -1,6 +1,17 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { authState } from '../utils/auth'
 
 const routes = [
+    {
+        path: '/login',
+        component: () => import('../pages/LoginView.vue'),
+        meta: { public: true }
+    },
+    {
+        path: '/signup',
+        component: () => import('../pages/SignupView.vue'),
+        meta: { public: true }
+    },
     {
         path: '/',
         component: () => import('../pages/HomeView.vue')
@@ -71,14 +82,25 @@ const router = createRouter({
             return {
                 el: to.hash,
                 behavior: 'smooth',
-                // Add a small delay to ensure the element exists
                 top: 0
             }
         }
         
-        // Otherwise scroll to top
         return { top: 0 }
     }
+})
+
+router.beforeEach((to, from, next) => {
+    if (to.meta.public) {
+        if (authState.isAuthenticated && (to.path === '/login' || to.path === '/signup')) {
+            return next('/')
+        }
+        return next()
+    }
+    if (!authState.isAuthenticated) {
+        return next('/login')
+    }
+    next()
 })
 
 export default router

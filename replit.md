@@ -2,17 +2,50 @@
 
 ## Overview
 
-PowerSymphony is a full-stack multi-agent AI workflow orchestration platform. Define complex agent pipelines via YAML, execute them through a FastAPI backend, and manage everything via a Vue 3 frontend. Includes 10 major feature sets: multi-agent swarms, GitHub Copilot synergy, Mermaid visual debugging, real-time collaboration, CI/CD automation, domain-specific templates, live external APIs, model fine-tuning, a workflow marketplace, and full integration.
+PowerSymphony is a full-stack multi-agent AI workflow orchestration SaaS platform. Define complex agent pipelines via YAML, execute them through a FastAPI backend, and manage everything via a Vue 3 frontend. Users sign up for accounts, log in, and access the platform online. Includes 10 major feature sets: multi-agent swarms, GitHub Copilot synergy, Mermaid visual debugging, real-time collaboration, CI/CD automation, domain-specific templates, live external APIs, model fine-tuning, a workflow marketplace, and full integration.
 
 ## Architecture
 
-- **Frontend**: Vue 3 + Vite (port 5000) — `frontend/`
-- **Backend**: FastAPI + uvicorn (port 8000) — `server/`, `server_main.py`
+- **Frontend**: Vue 3 + Vite (port 5000 dev / built to `frontend/dist` for production) — `frontend/`
+- **Backend**: FastAPI + uvicorn (port 8000 dev) / gunicorn (port 5000 production) — `server/`, `server_main.py`
+- **Database**: PostgreSQL (Replit built-in) — users, sessions tables
+- **Auth**: JWT-based authentication with bcrypt password hashing — `server/services/auth_service.py`, `server/routes/auth.py`
 - **Runtime**: Multi-agent workflow engine — `runtime/`
 - **Workflows**: YAML-defined agent graphs — `yaml_instance/`
 - **Browser Extension**: Chrome extension for AI browser control — `browser-extension/`
 
-## Workflows (Replit)
+## Authentication
+
+- Signup: `POST /api/auth/signup` — email + password + optional display name
+- Login: `POST /api/auth/login` — returns JWT token (72h expiry)
+- Me: `GET /api/auth/me` — returns current user (requires token)
+- Logout: `POST /api/auth/logout` — invalidates token
+- All `/api/*` routes are protected (require `Authorization: Bearer <token>`) except auth endpoints and health checks
+- Frontend uses a global fetch interceptor in `main.js` to attach tokens and handle 401 redirects
+- Auth middleware: `utils/middleware.py` → `auth_middleware`
+
+## Database
+
+- PostgreSQL via Replit's built-in database (env: `DATABASE_URL`, `PGHOST`, etc.)
+- Schema: `users` (id, email, password_hash, display_name, timestamps), `user_sessions` (id, user_id, token_hash, timestamps)
+- Connection helper: `server/services/db.py`
+- Schema auto-initialized on startup in `server/bootstrap.py`
+
+## Environment Variables
+
+- `DATABASE_URL` — PostgreSQL connection string (auto-set by Replit)
+- `JWT_SECRET` — Secret key for JWT signing (required)
+- `OPENWEATHERMAP_API_KEY`, `NEWSAPI_KEY`, `GITHUB_TOKEN` — Optional external API keys
+- `RATE_LIMIT_MAX_REQUESTS` — Rate limit per minute per IP (default 120)
+
+## Deployment
+
+- **Target**: Replit Autoscale
+- **Build**: `cd frontend && npm run build` (outputs to `frontend/dist`)
+- **Run**: `gunicorn --bind=0.0.0.0:5000 --workers=2 --timeout=120 server.app:app -k uvicorn.workers.UvicornWorker`
+- In production, FastAPI serves the built Vue SPA from `frontend/dist` via static file mounting + SPA catch-all route
+
+## Dev Workflows (Replit)
 
 - **Start application** — `cd frontend && npm run dev` on port 5000 (webview)
 - **Backend** — `python server_main.py --host 0.0.0.0 --port 8000` (console)

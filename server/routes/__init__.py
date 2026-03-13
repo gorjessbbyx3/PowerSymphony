@@ -1,7 +1,7 @@
 """Aggregates API routers."""
 
 from . import (
-    agent_performance, artifacts, batch, browser_agent, browser_control,
+    agent_performance, artifacts, auth, batch, browser_agent, browser_control,
     cicd, cloud_deploy, collaboration, crm, diagrams, execute, fine_tuning,
     github_copilot, health, marketplace, orchestration, scraping, sessions,
     system_stats, uploads, vuegraphs, workflows, websocket,
@@ -9,6 +9,7 @@ from . import (
 
 ALL_ROUTERS = [
     health.router,
+    auth.router,
     vuegraphs.router,
     workflows.router,
     uploads.router,

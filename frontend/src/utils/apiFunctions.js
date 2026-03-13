@@ -1,6 +1,32 @@
 import yaml from 'js-yaml'
+import { authState, clearAuth } from './auth'
 
 const apiUrl = (path) => path
+
+function authHeaders(extra = {}) {
+  const h = { ...extra }
+  if (authState.token) {
+    h['Authorization'] = `Bearer ${authState.token}`
+  }
+  return h
+}
+
+async function authFetch(url, options = {}) {
+  if (options.headers) {
+    options.headers = authHeaders(options.headers)
+  } else if (!options.body || typeof options.body === 'string') {
+    options.headers = authHeaders()
+  } else {
+    options.headers = authHeaders()
+    delete options.headers['Content-Type']
+  }
+  const res = await fetch(url, options)
+  if (res.status === 401) {
+    clearAuth()
+    window.location.href = '/login'
+  }
+  return res
+}
 
 const addYamlSuffix = (filename) => {
   const trimmed = (filename || '').trim()
@@ -17,7 +43,7 @@ const addYamlSuffix = (filename) => {
 export async function postYaml(filename, content) {
   try {
     const fullFilename = addYamlSuffix(filename)
-    const response = await fetch(apiUrl('/api/workflows/upload/content'), {
+    const response = await authFetch(apiUrl('/api/workflows/upload/content'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -69,7 +95,7 @@ export async function postYaml(filename, content) {
 export async function updateYaml(filename, content) {
   try {
     const yamlFilename = addYamlSuffix(filename)
-    const response = await fetch(apiUrl(`/api/workflows/${encodeURIComponent(yamlFilename)}`), {
+    const response = await authFetch(apiUrl(`/api/workflows/${encodeURIComponent(yamlFilename)}`), {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -109,7 +135,7 @@ export async function postYamlNameChange(filename, newFilename) {
   try {
     const yamlFilename = addYamlSuffix(filename)
     const yamlNewFilename = addYamlSuffix(newFilename)
-    const response = await fetch(apiUrl(`/api/workflows/${encodeURIComponent(yamlFilename)}/rename`), {
+    const response = await authFetch(apiUrl(`/api/workflows/${encodeURIComponent(yamlFilename)}/rename`), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -149,7 +175,7 @@ export async function postYamlCopy(filename, newFilename) {
   try {
     const yamlFilename = addYamlSuffix(filename)
     const yamlNewFilename = addYamlSuffix(newFilename)
-    const response = await fetch(apiUrl(`/api/workflows/${encodeURIComponent(yamlFilename)}/copy`), {
+    const response = await authFetch(apiUrl(`/api/workflows/${encodeURIComponent(yamlFilename)}/copy`), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -187,7 +213,7 @@ export async function postYamlCopy(filename, newFilename) {
 // Load the YAML file list from the API with names and descriptions
 export async function fetchWorkflowsWithDesc() {
   try {
-    const response = await fetch(apiUrl('/api/workflows'))
+    const response = await authFetch(apiUrl('/api/workflows'))
     if (!response.ok) {
       throw new Error(`/api/workflows fetch error, status: ${response.status}`)
     }
@@ -197,7 +223,7 @@ export async function fetchWorkflowsWithDesc() {
     const filesWithDesc = await Promise.all(
       data.workflows.map(async (filename) => {
         try {
-          const response = await fetch(apiUrl(`/api/workflows/${encodeURIComponent(filename)}`))
+          const response = await authFetch(apiUrl(`/api/workflows/${encodeURIComponent(filename)}`))
           const fileData = await response.json()
           return {
             name: filename,
@@ -234,7 +260,7 @@ export async function fetchWorkflowsWithDesc() {
 // Fetch YAML file content
 export async function fetchWorkflowYAML(filename) {
   try {
-    const response = await fetch(apiUrl(`/api/workflows/${encodeURIComponent(filename)}`))
+    const response = await authFetch(apiUrl(`/api/workflows/${encodeURIComponent(filename)}`))
     if (!response.ok) {
       throw new Error(`Failed to load YAML file: ${filename}, status: ${response.status}`)
     }
@@ -250,7 +276,7 @@ export async function fetchWorkflowYAML(filename) {
 export async function fetchYaml(filename) {
   try {
     const yamlFilename = addYamlSuffix(filename)
-    const response = await fetch(apiUrl(`/api/workflows/${encodeURIComponent(yamlFilename)}`))
+    const response = await authFetch(apiUrl(`/api/workflows/${encodeURIComponent(yamlFilename)}`))
 
     const data = await response.json().catch(() => ({}))
 
@@ -279,7 +305,7 @@ export async function fetchYaml(filename) {
 // Fetch the VueFlow graph
 export async function fetchVueGraph(key) {
   try {
-    const response = await fetch(apiUrl(`/api/vuegraphs/${encodeURIComponent(key)}`))
+    const response = await authFetch(apiUrl(`/api/vuegraphs/${encodeURIComponent(key)}`))
     const data = await response.json().catch(() => ({}))
 
     if (response.ok) {
@@ -308,7 +334,7 @@ export async function fetchVueGraph(key) {
 // Save the VueFlow graph
 export async function postVuegraphs({ filename, content }) {
   try {
-    const response = await fetch(apiUrl('/api/vuegraphs/upload/content'), {
+    const response = await authFetch(apiUrl('/api/vuegraphs/upload/content'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -346,7 +372,7 @@ export async function postVuegraphs({ filename, content }) {
 // Fetch the config schema
 export async function fetchConfigSchema(breadcrumbs) {
   try {
-    const response = await fetch(apiUrl('/api/config/schema'), {
+    const response = await authFetch(apiUrl('/api/config/schema'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -371,7 +397,7 @@ export async function fetchConfigSchema(breadcrumbs) {
 // Download execution logs
 export async function fetchLogsZip(sessionId) {
   try {
-    const response = await fetch(apiUrl(`/api/sessions/${encodeURIComponent(sessionId)}/download`))
+    const response = await authFetch(apiUrl(`/api/sessions/${encodeURIComponent(sessionId)}/download`))
 
     if (!response.ok) {
       throw new Error(`Download failed: ${response.status} ${response.statusText}`)
@@ -409,7 +435,7 @@ export async function getAttachment(sessionId, attachmentId) {
       throw new Error('Missing attachment id')
     }
 
-    const response = await fetch(apiUrl(`/api/sessions/${encodeURIComponent(sessionId)}/artifacts/${encodeURIComponent(attachmentId)}`))
+    const response = await authFetch(apiUrl(`/api/sessions/${encodeURIComponent(sessionId)}/artifacts/${encodeURIComponent(attachmentId)}`))
 
     if (!response.ok) {
       throw new Error(`Failed to fetch attachment: ${response.status} ${response.statusText}`)
@@ -445,7 +471,7 @@ export async function postBatchWorkflow({ file, sessionId, yamlFile, maxParallel
       formData.append('log_level', logLevel)
     }
 
-    const response = await fetch(apiUrl('/api/workflows/batch'), {
+    const response = await authFetch(apiUrl('/api/workflows/batch'), {
       method: 'POST',
       body: formData
     })
@@ -498,7 +524,7 @@ export async function postFile(sessionId, file) {
 
     formData.append('file', payload, filename)
 
-    const response = await fetch(apiUrl(`/api/uploads/${encodeURIComponent(sessionId)}`), {
+    const response = await authFetch(apiUrl(`/api/uploads/${encodeURIComponent(sessionId)}`), {
       method: 'POST',
       body: formData
     })

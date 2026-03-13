@@ -27,6 +27,15 @@
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
               </svg>
             </button>
+            <div class="user-menu" v-if="authState.user">
+              <button class="user-btn" @click="showUserMenu = !showUserMenu">
+                {{ userInitial }}
+              </button>
+              <div v-if="showUserMenu" class="user-dropdown">
+                <div class="user-info">{{ authState.user.email }}</div>
+                <button @click="handleLogout" class="logout-btn">Sign Out</button>
+              </div>
+            </div>
         </div>
     </div>
     <SettingsModal
@@ -36,16 +45,29 @@
 </template>
 
 <script setup>
-import { RouterLink, useRoute } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { computed, ref } from 'vue'
 import SettingsModal from './SettingsModal.vue'
+import { authState, logoutUser } from '../utils/auth'
 
 const showSettingsModal = ref(false)
+const showUserMenu = ref(false)
 
 const route = useRoute()
+const router = useRouter()
 const isWorkflowsActive = computed(() => route.path.startsWith('/workflows'))
 
+const userInitial = computed(() => {
+  if (authState.user?.display_name) return authState.user.display_name[0].toUpperCase()
+  if (authState.user?.email) return authState.user.email[0].toUpperCase()
+  return '?'
+})
 
+async function handleLogout() {
+  showUserMenu.value = false
+  await logoutUser()
+  router.push('/login')
+}
 </script>
 
 <style scoped>
@@ -70,6 +92,9 @@ const isWorkflowsActive = computed(() => route.path.startsWith('/workflows'))
     right: 24px;
     top: 50%;
     transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
 .sidebar-nav {
@@ -125,5 +150,67 @@ const isWorkflowsActive = computed(() => route.path.startsWith('/workflows'))
 
 .settings-nav-btn:hover {
   color: #f2f2f2;
+}
+
+.user-menu {
+  position: relative;
+  margin-left: 8px;
+}
+
+.user-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #aaffcd, #99eaf9);
+  color: #0d1117;
+  border: none;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.2s;
+}
+
+.user-btn:hover {
+  opacity: 0.85;
+}
+
+.user-dropdown {
+  position: absolute;
+  top: 42px;
+  right: 0;
+  background: #1c2333;
+  border: 1px solid #2d3748;
+  border-radius: 8px;
+  min-width: 200px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  z-index: 200;
+  overflow: hidden;
+}
+
+.user-info {
+  padding: 12px 16px;
+  color: #c9d1d9;
+  font-size: 13px;
+  border-bottom: 1px solid #2d3748;
+  word-break: break-all;
+}
+
+.logout-btn {
+  width: 100%;
+  padding: 10px 16px;
+  background: transparent;
+  border: none;
+  color: #f85149;
+  font-size: 14px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.2s;
+}
+
+.logout-btn:hover {
+  background: rgba(248, 81, 73, 0.1);
 }
 </style>

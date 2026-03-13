@@ -1,6 +1,7 @@
 """Custom middleware for the PowerSymphony workflow system."""
 
 import uuid
+import logging
 from typing import Callable, Awaitable
 from fastapi import Request, HTTPException, FastAPI
 from fastapi.responses import JSONResponse
@@ -11,6 +12,53 @@ import os
 
 from utils.structured_logger import get_server_logger, LogType
 from utils.exceptions import SecurityError
+
+logger = logging.getLogger(__name__)
+
+PUBLIC_PATHS = {
+    "/api/auth/signup",
+    "/api/auth/login",
+    "/health",
+    "/health/",
+    "/health/live",
+    "/health/ready",
+}
+
+PUBLIC_PREFIXES = (
+    "/docs",
+    "/openapi",
+    "/redoc",
+)
+
+
+async def auth_middleware(request: Request, call_next: Callable):
+    path = request.url.path
+
+    if path in PUBLIC_PATHS or path.startswith(PUBLIC_PREFIXES):
+        return await call_next(request)
+
+    if not path.startswith("/api/"):
+        return await call_next(request)
+
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return JSONResponse(status_code=401, content={"detail": "Not authenticated"})
+
+    token = auth_header[7:]
+    try:
+        from server.services.auth_service import decode_jwt, get_user_by_id
+        payload = decode_jwt(token)
+        if not payload:
+            return JSONResponse(status_code=401, content={"detail": "Invalid or expired token"})
+        user = get_user_by_id(payload["sub"])
+        if not user:
+            return JSONResponse(status_code=401, content={"detail": "User not found"})
+        request.state.user = dict(user)
+    except Exception as e:
+        logger.error(f"Auth middleware error: {e}")
+        return JSONResponse(status_code=401, content={"detail": "Authentication failed"})
+
+    return await call_next(request)
 
 
 async def correlation_id_middleware(request: Request, call_next: Callable):
@@ -142,9 +190,8 @@ def add_middleware(app: FastAPI):
     # Attach CORS first to handle preflight requests and allow origins.
     add_cors_middleware(app)
 
-    # Add other middleware
     app.middleware("http")(correlation_id_middleware)
+    app.middleware("http")(auth_middleware)
     app.middleware("http")(security_middleware)
-    # app.middleware("http")(rate_limit_middleware)  # Enable if needed
     
     return app

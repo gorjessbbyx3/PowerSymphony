@@ -1,10 +1,10 @@
-modules = ["python-3.12", "vue-node-20", "nodejs-20", "web"]
+modules = ["python-3.12", "vue-node-20", "nodejs-20", "web", "python3", "postgresql-16"]
 [agent]
 expertMode = true
 
 [nix]
 channel = "stable-25_05"
-packages = ["SDL2", "SDL2_image", "SDL2_mixer", "SDL2_ttf", "cairo", "ffmpeg-full", "fontconfig", "freetype", "geos", "ghostscript", "glibcLocales", "gobject-introspection", "gtk3", "libjpeg", "libpng", "libxcrypt", "libyaml", "pkg-config", "portmidi", "proj", "qhull", "tcl", "tk"]
+packages = ["SDL2", "SDL2_image", "SDL2_mixer", "SDL2_ttf", "cairo", "cargo", "ffmpeg-full", "fontconfig", "freetype", "geos", "ghostscript", "glibcLocales", "gobject-introspection", "gtk3", "libiconv", "libjpeg", "libpng", "libxcrypt", "libyaml", "pkg-config", "portmidi", "proj", "qhull", "rustc", "tcl", "tk"]
 
 [workflows]
 runButton = "Project"
@@ -57,3 +57,13 @@ externalPort = 3000
 [[ports]]
 localPort = 8000
 externalPort = 80
+
+[userenv]
+
+[userenv.shared]
+JWT_SECRET = "a2342e489e3ccbd3ae286a70dc9b1d3034353d2a03c2660c6dcf67bef91b16c0"
+
+[deployment]
+deploymentTarget = "autoscale"
+run = ["gunicorn", "--bind=0.0.0.0:5000", "--workers=2", "--timeout=120", "server.app:app", "-k", "uvicorn.workers.UvicornWorker"]
+build = ["bash", "-c", "cd frontend && npm run build"]
