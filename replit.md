@@ -75,11 +75,55 @@ See `.env.example` for all supported variables:
 - `SERPER_DEV_API_KEY` — web search tool
 - `JINA_API_KEY` — web reading tool
 
+## Performance Improvements
+
+### Parallel Tool Execution
+Multiple tools in the same agent node execute concurrently using `ThreadPoolExecutor` (up to 8 workers by default).
+- Controlled by `DEVALL_MAX_PARALLEL_TOOLS` env var (default: `8`)
+- Implemented in `runtime/node/executor/agent_executor.py` → `_execute_tool_batch`
+
+### LLM Response Cache
+Temperature-0 LLM calls are cached to disk and memory to skip redundant API calls.
+- Activated when `temperature=0.0` in the node config
+- Controlled by `DEVALL_LLM_CACHE` env var (default: `true`)
+- Cache stored in `WareHouse/.llm_cache/`
+- Cache max entries controlled by `LLM_CACHE_MAX_ENTRIES` (default: `512`)
+- Implemented in `utils/llm_cache.py`
+
+### Human Input Polling
+Human-input poll interval reduced from 1.0 s to 0.05 s for near-instant UI responsiveness.
+
+## Session Persistence
+
+Workflow sessions are now persisted to disk in `WareHouse/.sessions/` as JSON files. This means past session metadata (status, YAML file, timestamps) survives server restarts.
+
+- Active sessions: available via `GET /api/sessions`
+- Historical sessions: also returned under `.historical` key
+
+## System Stats & Monitoring
+
+A new **System** page is available at `/system` in the frontend sidebar.
+
+Backend monitoring endpoints:
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/system/stats` | Full runtime stats (cache, sessions, providers, config) |
+| `GET /api/system/health/detailed` | Component-level health checks |
+| `POST /api/system/cache/clear` | Clear the LLM response cache |
+| `GET /api/sessions` | List active + historical sessions |
+
 ## Key Files
 
 - `runtime/node/agent/providers/` — LLM provider implementations
 - `runtime/node/agent/providers/claude_provider.py` — Anthropic Claude provider
+- `runtime/node/executor/agent_executor.py` — `_execute_tool_batch` (parallel tools), `_invoke_provider` (LLM cache)
+- `utils/llm_cache.py` — Disk-backed LLM response cache
+- `server/services/session_store.py` — Session persistence with disk snapshots
+- `server/routes/system_stats.py` — System stats & monitoring API
+- `server/routes/sessions.py` — Session listing API
 - `server/routes/browser_agent.py` — WebSocket endpoint for browser extension
 - `server/routes/browser_control.py` — REST API for browser automation
 - `browser-extension/manifest.json` — Chrome extension manifest
 - `yaml_instance/claude_example.yaml` — Example Claude workflow
+- `frontend/src/pages/SystemStatsView.vue` — System stats page
+- `frontend/src/components/Sidebar.vue` — Navigation (includes System link)

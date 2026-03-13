@@ -9,9 +9,11 @@ Responsible for running agent nodes, including
 
 import asyncio
 import base64
+import concurrent.futures
 import json
+import os
 import traceback
-from typing import Any, Callable, Dict, List, Optional, Sequence
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 from entity.configs import Node
 from entity.configs.node.agent import AgentConfig, AgentRetryConfig
@@ -348,13 +350,38 @@ class AgentNodeExecutor(NodeExecutor):
         tool_specs: List[ToolSpec] | None,
         node: Node,
     ) -> ModelResponse:
-        """Invoke provider with logging + token tracking."""
+        """Invoke provider with logging, token tracking, and optional LLM caching."""
         self._ensure_not_cancelled()
         if self.context.token_tracker:
             self.context.token_tracker.current_node_id = node.id
 
         agent_config = node.as_config(AgentConfig)
         retry_policy = self._resolve_retry_policy(node, agent_config)
+        last_input = ''.join(msg.text_content() for msg in conversation) if conversation else ""
+
+        # --- LLM response cache (temperature-zero or explicitly opted-in calls) ---
+        cache_enabled = os.environ.get("DEVALL_LLM_CACHE", "true").lower() == "true"
+        temperature = float(call_options.get("temperature", agent_config.params.get("temperature", 1.0) if agent_config else 1.0))
+        use_cache = cache_enabled and temperature == 0.0
+
+        cache_key: Optional[str] = None
+        if use_cache:
+            try:
+                from utils.llm_cache import llm_cache
+                cache_key = llm_cache.make_key(
+                    model_name=provider.model_name,
+                    provider=provider.provider,
+                    messages=list(conversation),
+                    temperature=temperature,
+                    max_tokens=call_options.get("max_tokens"),
+                    extra={"tool_count": len(tool_specs) if tool_specs else 0},
+                )
+                cached = llm_cache.get(cache_key)
+                if cached is not None:
+                    self.log_manager.debug(f"[LLM Cache HIT] node={node.id} model={provider.model_name}")
+                    return cached
+            except Exception:
+                cache_key = None  # Don't let cache errors break execution
 
         def _call_provider() -> ModelResponse:
             return provider.call_model(
@@ -365,11 +392,19 @@ class AgentNodeExecutor(NodeExecutor):
                 **call_options,
             )
 
-        last_input = ''.join(msg.text_content() for msg in conversation) if conversation else ""
         self._record_model_call(node, last_input, None, CallStage.BEFORE)
         response = self._execute_with_retry(node, retry_policy, _call_provider)
         self.log_manager.debug(response.str_raw_response())
         self._record_model_call(node, last_input, response, CallStage.AFTER)
+
+        # Store in cache if applicable
+        if use_cache and cache_key and not response.has_tool_calls():
+            try:
+                from utils.llm_cache import llm_cache
+                llm_cache.set(cache_key, response)
+            except Exception:
+                pass
+
         return response
 
     def _record_model_call(
@@ -618,12 +653,13 @@ class AgentNodeExecutor(NodeExecutor):
         tool_specs: List[ToolSpec],
         skill_manager: AgentSkillManager | None,
     ) -> tuple[List[Message], List[Any]]:
-        """Execute a batch of tool calls and return conversation + timeline events."""
-        messages: List[Message] = []
-        events: List[Any] = []
+        """Execute a batch of tool calls in parallel and return conversation + timeline events.
+
+        Multiple tool calls from a single model response are independent and safe
+        to run concurrently.  Results are collected in the original call order so
+        the conversation history remains consistent.
+        """
         model = node.as_config(AgentConfig)
-        
-        # Build map for fast lookup
         spec_map = {spec.name: spec for spec in tool_specs}
         configs = model.tooling if model else []
 
@@ -632,212 +668,40 @@ class AgentNodeExecutor(NodeExecutor):
         if context_state is not None:
             context_state["node_id"] = node.id
 
+        max_parallel = int(os.environ.get("DEVALL_MAX_PARALLEL_TOOLS", "8"))
+
         try:
-            for tool_call in tool_calls:
+            if len(tool_calls) <= 1:
+                # Fast path – no parallelism overhead for single tool calls
+                results_ordered = [
+                    self._execute_single_tool_call(
+                        node, tool_calls[0], spec_map, configs, skill_manager
+                    )
+                ] if tool_calls else []
+            else:
+                # Parallel path – run all tool calls concurrently
                 self._ensure_not_cancelled()
-                tool_name = tool_call.function_name
-                arguments = self._parse_tool_call_arguments(tool_call.arguments)
-                
-                # Resolve tool config
-                spec = spec_map.get(tool_name)
-                tool_config = None
-                execution_name = tool_name
-                
-                if spec:
-                    idx = spec.metadata.get("_config_index")
-                    if idx is not None and 0 <= idx < len(configs):
-                        tool_config = configs[idx]
-                    # Use original name if prefixed
-                    execution_name = spec.metadata.get("original_name", tool_name)
+                with concurrent.futures.ThreadPoolExecutor(
+                    max_workers=min(len(tool_calls), max_parallel),
+                    thread_name_prefix="devall-tool",
+                ) as pool:
+                    futures = [
+                        pool.submit(
+                            self._execute_single_tool_call,
+                            node, tc, spec_map, configs, skill_manager,
+                        )
+                        for tc in tool_calls
+                    ]
+                    results_ordered = [f.result() for f in futures]
 
-                if spec and spec.metadata.get("source") == "agent_skill_internal":
-                    try:
-                        self.log_manager.record_tool_call(
-                            node.id,
-                            tool_name,
-                            None,
-                            None,
-                            {"arguments": arguments},
-                            CallStage.BEFORE,
-                        )
-                        with self.log_manager.tool_timer(node.id, tool_name):
-                            result = self._execute_skill_tool(tool_name, arguments, skill_manager)
+            # Accumulate in call order so conversation history is deterministic
+            messages: List[Message] = []
+            events: List[Any] = []
+            for call_messages, call_events in results_ordered:
+                messages.extend(call_messages)
+                events.extend(call_events)
 
-                        tool_message = self._build_tool_message(
-                            result,
-                            tool_call,
-                            node_id=node.id,
-                            tool_name=tool_name,
-                        )
-                        events.append(self._build_function_call_output_event(tool_call, result))
-                        system_message = self._build_skill_followup_message(tool_name, result, node.id)
-                        if system_message is not None:
-                            messages.append(system_message)
-                            events.append(system_message)
-                        self.log_manager.record_tool_call(
-                            node.id,
-                            tool_name,
-                            True,
-                            self._serialize_tool_result(result),
-                            {"arguments": arguments},
-                            CallStage.AFTER,
-                        )
-                    except Exception as exc:
-                        self.log_manager.record_tool_call(
-                            node.id,
-                            tool_name,
-                            False,
-                            None,
-                            {"error": str(exc), "arguments": arguments},
-                            CallStage.AFTER,
-                        )
-                        tool_message = Message(
-                            role=MessageRole.TOOL,
-                            content=f"Tool {tool_name} error: {exc}",
-                            tool_call_id=tool_call.id,
-                            metadata={"tool_name": tool_name, "source": node.id},
-                        )
-                        events.append(
-                            FunctionCallOutputEvent(
-                                call_id=tool_call.id or tool_call.function_name or "tool_call",
-                                function_name=tool_call.function_name,
-                                output_text=f"error: {exc}",
-                            )
-                        )
-
-                    messages.append(tool_message)
-                    continue
-
-                active_skill = skill_manager.active_skill() if skill_manager is not None else None
-                if (
-                    active_skill is not None
-                    and active_skill.allowed_tools
-                    and execution_name not in active_skill.allowed_tools
-                ):
-                    error_msg = (
-                        f"Tool '{tool_name}' is not allowed by active skill "
-                        f"'{active_skill.name}'. Allowed tools: {list(active_skill.allowed_tools)}"
-                    )
-                    self.log_manager.record_tool_call(
-                        node.id,
-                        tool_name,
-                        False,
-                        None,
-                        {"error": error_msg, "arguments": arguments},
-                        CallStage.AFTER,
-                    )
-                    tool_message = Message(
-                        role=MessageRole.TOOL,
-                        content=f"Error: {error_msg}",
-                        tool_call_id=tool_call.id,
-                        metadata={"tool_name": tool_name, "source": node.id},
-                    )
-                    events.append(
-                        FunctionCallOutputEvent(
-                            call_id=tool_call.id or tool_call.function_name or "tool_call",
-                            function_name=tool_call.function_name,
-                            output_text=f"error: {error_msg}",
-                        )
-                    )
-                    messages.append(tool_message)
-                    continue
-                
-                if not tool_config:
-                     # Fallback check: if we have 1 config, maybe it's that one? 
-                     # But strict routing is safer. If spec not found, it's a hallucination or error.
-                     # We proceed and let tool_manager raise error or handle it.
-                     # But execute_tool requires tool_config. 
-                     
-                     # Construct a helpful error message
-                     error_msg = f"Tool '{tool_name}' configuration not found."
-                     self.log_manager.record_tool_call(
-                        node.id,
-                        tool_name,
-                        False,
-                        None,
-                        {"error": error_msg, "arguments": arguments},
-                        CallStage.AFTER,
-                    )
-                     tool_message = Message(
-                        role=MessageRole.TOOL,
-                        content=f"Error: {error_msg}",
-                        tool_call_id=tool_call.id,
-                        metadata={"tool_name": tool_name, "source": node.id},
-                    )
-                     events.append(
-                        FunctionCallOutputEvent(
-                            call_id=tool_call.id or tool_call.function_name or "tool_call",
-                            function_name=tool_call.function_name,
-                            output_text=f"error: {error_msg}",
-                        )
-                    )
-                     messages.append(tool_message)
-                     continue
-
-                try:
-                    self.log_manager.record_tool_call(
-                        node.id,
-                        tool_name,
-                        None,
-                        None,
-                        {"arguments": arguments},
-                        CallStage.BEFORE,
-                    )
-                    with self.log_manager.tool_timer(node.id, tool_name):
-                        result = asyncio.run(
-                            self.tool_manager.execute_tool(
-                                execution_name,
-                                arguments,
-                                tool_config,
-                                tool_context=self.context.global_state,
-                            )
-                        )
-
-                    tool_message = self._build_tool_message(
-                        result,
-                        tool_call,
-                        node_id=node.id,
-                        tool_name=tool_name,
-                    )
-                    events.append(
-                        self._build_function_call_output_event(
-                            tool_call,
-                            result,
-                        )
-                    )
-
-                    self.log_manager.record_tool_call(
-                        node.id,
-                        tool_name,
-                        True,
-                        self._serialize_tool_result(result),
-                        {"arguments": arguments},
-                        CallStage.AFTER,
-                    )
-                except Exception as exc:
-                    self.log_manager.record_tool_call(
-                        node.id,
-                        tool_name,
-                        False,
-                        None,
-                        {"error": str(exc), "arguments": arguments},
-                        CallStage.AFTER,
-                    )
-                    tool_message = Message(
-                        role=MessageRole.TOOL,
-                        content=f"Tool {tool_name} error: {exc}",
-                        tool_call_id=tool_call.id,
-                        metadata={"tool_name": tool_name, "source": node.id},
-                    )
-                    events.append(
-                        FunctionCallOutputEvent(
-                            call_id=tool_call.id or tool_call.function_name or "tool_call",
-                            function_name=tool_call.function_name,
-                            output_text=f"error: {exc}",
-                        )
-                    )
-
-                messages.append(tool_message)
+            return messages, events
         finally:
             if context_state is not None:
                 if previous_node_id is None:
@@ -845,6 +709,159 @@ class AgentNodeExecutor(NodeExecutor):
                 else:
                     context_state["node_id"] = previous_node_id
 
+    def _execute_single_tool_call(
+        self,
+        node: Node,
+        tool_call: ToolCallPayload,
+        spec_map: Dict[str, ToolSpec],
+        configs: List[Any],
+        skill_manager: AgentSkillManager | None,
+    ) -> Tuple[List[Message], List[Any]]:
+        """Execute one tool call and return (messages, events) for that call.
+
+        Safe to call from multiple threads simultaneously – each invocation
+        operates on its own local state and the shared log_manager is
+        thread-safe.
+        """
+        self._ensure_not_cancelled()
+
+        tool_name = tool_call.function_name
+        arguments = self._parse_tool_call_arguments(tool_call.arguments)
+
+        spec = spec_map.get(tool_name)
+        tool_config = None
+        execution_name = tool_name
+
+        if spec:
+            idx = spec.metadata.get("_config_index")
+            if idx is not None and 0 <= idx < len(configs):
+                tool_config = configs[idx]
+            execution_name = spec.metadata.get("original_name", tool_name)
+
+        messages: List[Message] = []
+        events: List[Any] = []
+
+        # --- Skill-internal tool path ---
+        if spec and spec.metadata.get("source") == "agent_skill_internal":
+            try:
+                self.log_manager.record_tool_call(
+                    node.id, tool_name, None, None, {"arguments": arguments}, CallStage.BEFORE,
+                )
+                with self.log_manager.tool_timer(node.id, tool_name):
+                    result = self._execute_skill_tool(tool_name, arguments, skill_manager)
+
+                tool_message = self._build_tool_message(result, tool_call, node_id=node.id, tool_name=tool_name)
+                events.append(self._build_function_call_output_event(tool_call, result))
+                system_message = self._build_skill_followup_message(tool_name, result, node.id)
+                if system_message is not None:
+                    messages.append(system_message)
+                    events.append(system_message)
+                self.log_manager.record_tool_call(
+                    node.id, tool_name, True, self._serialize_tool_result(result),
+                    {"arguments": arguments}, CallStage.AFTER,
+                )
+            except Exception as exc:
+                self.log_manager.record_tool_call(
+                    node.id, tool_name, False, None, {"error": str(exc), "arguments": arguments}, CallStage.AFTER,
+                )
+                tool_message = Message(
+                    role=MessageRole.TOOL,
+                    content=f"Tool {tool_name} error: {exc}",
+                    tool_call_id=tool_call.id,
+                    metadata={"tool_name": tool_name, "source": node.id},
+                )
+                events.append(FunctionCallOutputEvent(
+                    call_id=tool_call.id or tool_call.function_name or "tool_call",
+                    function_name=tool_call.function_name,
+                    output_text=f"error: {exc}",
+                ))
+            messages.append(tool_message)
+            return messages, events
+
+        # --- Skill allow-list check ---
+        active_skill = skill_manager.active_skill() if skill_manager is not None else None
+        if (
+            active_skill is not None
+            and active_skill.allowed_tools
+            and execution_name not in active_skill.allowed_tools
+        ):
+            error_msg = (
+                f"Tool '{tool_name}' is not allowed by active skill "
+                f"'{active_skill.name}'. Allowed tools: {list(active_skill.allowed_tools)}"
+            )
+            self.log_manager.record_tool_call(
+                node.id, tool_name, False, None, {"error": error_msg, "arguments": arguments}, CallStage.AFTER,
+            )
+            messages.append(Message(
+                role=MessageRole.TOOL,
+                content=f"Error: {error_msg}",
+                tool_call_id=tool_call.id,
+                metadata={"tool_name": tool_name, "source": node.id},
+            ))
+            events.append(FunctionCallOutputEvent(
+                call_id=tool_call.id or tool_call.function_name or "tool_call",
+                function_name=tool_call.function_name,
+                output_text=f"error: {error_msg}",
+            ))
+            return messages, events
+
+        # --- Missing config guard ---
+        if not tool_config:
+            error_msg = f"Tool '{tool_name}' configuration not found."
+            self.log_manager.record_tool_call(
+                node.id, tool_name, False, None, {"error": error_msg, "arguments": arguments}, CallStage.AFTER,
+            )
+            messages.append(Message(
+                role=MessageRole.TOOL,
+                content=f"Error: {error_msg}",
+                tool_call_id=tool_call.id,
+                metadata={"tool_name": tool_name, "source": node.id},
+            ))
+            events.append(FunctionCallOutputEvent(
+                call_id=tool_call.id or tool_call.function_name or "tool_call",
+                function_name=tool_call.function_name,
+                output_text=f"error: {error_msg}",
+            ))
+            return messages, events
+
+        # --- External tool execution (async, runs its own event loop per thread) ---
+        try:
+            self.log_manager.record_tool_call(
+                node.id, tool_name, None, None, {"arguments": arguments}, CallStage.BEFORE,
+            )
+            with self.log_manager.tool_timer(node.id, tool_name):
+                result = asyncio.run(
+                    self.tool_manager.execute_tool(
+                        execution_name,
+                        arguments,
+                        tool_config,
+                        tool_context=self.context.global_state,
+                    )
+                )
+
+            tool_message = self._build_tool_message(result, tool_call, node_id=node.id, tool_name=tool_name)
+            events.append(self._build_function_call_output_event(tool_call, result))
+            self.log_manager.record_tool_call(
+                node.id, tool_name, True, self._serialize_tool_result(result),
+                {"arguments": arguments}, CallStage.AFTER,
+            )
+        except Exception as exc:
+            self.log_manager.record_tool_call(
+                node.id, tool_name, False, None, {"error": str(exc), "arguments": arguments}, CallStage.AFTER,
+            )
+            tool_message = Message(
+                role=MessageRole.TOOL,
+                content=f"Tool {tool_name} error: {exc}",
+                tool_call_id=tool_call.id,
+                metadata={"tool_name": tool_name, "source": node.id},
+            )
+            events.append(FunctionCallOutputEvent(
+                call_id=tool_call.id or tool_call.function_name or "tool_call",
+                function_name=tool_call.function_name,
+                output_text=f"error: {exc}",
+            ))
+
+        messages.append(tool_message)
         return messages, events
 
     def _build_skill_followup_message(
