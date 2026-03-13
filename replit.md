@@ -100,6 +100,67 @@ Workflow sessions are now persisted to disk in `WareHouse/.sessions/` as JSON fi
 - Active sessions: available via `GET /api/sessions`
 - Historical sessions: also returned under `.historical` key
 
+## Self-Improving Agents
+
+Agents can now learn from their own outputs, score themselves with an LLM judge, evolve their prompts, and improve across every run.
+
+### How It Works
+
+1. **LLM-as-Judge Scoring** — An independent LLM evaluates each output on a 1–10 scale with strengths, critique, and suggestions.
+2. **Iterative Refinement** — An agent critiques its own draft and rewrites it in a loop until the quality threshold is reached (default: 8.0/10).
+3. **Cross-Run Memory** — Performance records (task, output, score, critique) are persisted to `WareHouse/.agent_performance/` across server restarts.
+4. **Prompt Evolution** — After accumulating runs, an agent calls `improve_my_prompt` to generate a better system prompt. The new version is saved with version tracking and avg-score data.
+5. **Autonomous Optimizer** — The `autonomous_optimizer.yaml` pipeline runs a 4-agent meta-loop (Analyzer → Optimizer → Validator → Deployer) to autonomously improve any agent.
+
+### Tool Functions (add to any YAML `tools:` section)
+
+| Function | Description |
+|----------|-------------|
+| `score_my_output` | LLM judge: 1–10 score + strengths + critique + suggestions |
+| `run_iterative_refinement` | Refine output in up to 5 loops until quality threshold |
+| `compare_outputs` | Judge which of two outputs is better |
+| `improve_my_prompt` | Generate + save an improved system prompt |
+| `save_performance` | Persist a run record to cross-run history |
+| `get_past_runs` | Load N recent scored runs (for cross-run learning) |
+| `get_best_prompt` | Get the highest-scoring evolved prompt version |
+
+### REST API (`/api/performance/*`)
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/performance` | List all agents with performance data |
+| `GET /api/performance/{id}` | Stats + trend for one agent |
+| `GET /api/performance/{id}/runs` | Recent scored runs |
+| `GET /api/performance/{id}/prompt` | All prompt versions + best |
+| `POST /api/performance/{id}/score` | Score an output via API |
+| `POST /api/performance/{id}/refine` | Iteratively refine via API |
+| `POST /api/performance/{id}/improve-prompt` | Evolve prompt via API |
+| `POST /api/performance/{id}/runs` | Save a run record |
+| `DELETE /api/performance/{id}` | Reset all data for agent |
+
+### Frontend: `/performance`
+
+The **Performance** page in the sidebar shows:
+- Agent cards with avg score, run count, prompt versions, and trend bar
+- Score trend chart and recent run table when an agent is selected
+- Full prompt version history with avg scores per version
+- "Try Refinement" button to test iterative refinement interactively
+
+### Example Workflows
+
+| File | Description |
+|------|-------------|
+| `yaml_instance/self_improving_agent.yaml` | Single agent: learns, writes, refines, saves, evolves |
+| `yaml_instance/prompt_evolution_pipeline.yaml` | Two agents: Drafter + Reviewer, both improving over time |
+| `yaml_instance/autonomous_optimizer.yaml` | 4-agent meta-pipeline to autonomously optimize any agent |
+
+### Key Files
+
+- `utils/agent_performance_store.py` — Persistent per-agent run + prompt history store
+- `functions/function_calling/self_improve.py` — 7 self-improvement tool functions
+- `server/routes/agent_performance.py` — REST API
+- `frontend/src/pages/AgentPerformanceView.vue` — Performance dashboard
+
 ## Data Scraping
 
 Web scraping is available as both **agent tool functions** (use in YAML workflows) and **REST API endpoints**.

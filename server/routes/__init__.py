@@ -1,8 +1,8 @@
 """Aggregates API routers."""
 
 from . import (
-    artifacts, batch, browser_agent, browser_control, cloud_deploy,
-    crm, execute, health, scraping, sessions, system_stats,
+    agent_performance, artifacts, batch, browser_agent, browser_control,
+    cloud_deploy, crm, execute, health, scraping, sessions, system_stats,
     uploads, vuegraphs, workflows, websocket,
 )
 
@@ -22,6 +22,7 @@ ALL_ROUTERS = [
     scraping.router,
     crm.router,
     cloud_deploy.router,
+    agent_performance.router,
 ]
 
 __all__ = ["ALL_ROUTERS"]

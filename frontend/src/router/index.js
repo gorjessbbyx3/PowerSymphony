@@ -24,6 +24,10 @@ const routes = [
     {
         path: '/system',
         component: () => import('../pages/SystemStatsView.vue')
+    },
+    {
+        path: '/performance',
+        component: () => import('../pages/AgentPerformanceView.vue')
     }
 ]
 
