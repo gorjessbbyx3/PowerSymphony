@@ -1,0 +1,116 @@
+version: "1.0"
+vars:
+  AGENT_ROLE: "sales_marketing"
+  KPI_TARGET: "20 beta users in Month 2 via LinkedIn/email campaigns"
+  DEPENDS_ON: "market_researcher, product_strategist"
+  FEEDS_INTO: "fundraising_ops, product_strategist"
+
+graph:
+  id: sales_marketing_agent
+  description: >
+    Sales & Marketing Agent — Crafts pitches, runs A/B tests on outreach,
+    manages LinkedIn/email campaigns, and tracks conversion metrics.
+    KPI: Acquire 20 beta users in Month 2.
+
+  start: [persona_builder]
+
+  nodes:
+    - id: persona_builder
+      type: agent
+      config:
+        provider: openai
+        name: gpt-4o
+        api_key: ${API_KEY}
+        role: >
+          You are the Buyer Persona Builder. Using market research data, create
+          detailed Ideal Customer Profiles (ICPs) and buyer personas:
+
+          For each persona:
+          {persona_name, job_title, company_size, industry, pain_points[],
+           goals[], objections[], preferred_channels[],
+           decision_criteria[], budget_authority, buying_stage}
+
+          Create at least 3 personas:
+          1. Technical Decision Maker (VP Engineering, CTO)
+          2. Operations Lead (Head of DevOps, Platform Lead)
+          3. End User Champion (Senior Developer, ML Engineer)
+
+          Include messaging frameworks for each persona:
+          - Value proposition (1 sentence)
+          - Elevator pitch (30 seconds)
+          - Key differentiators vs. alternatives
+          - Social proof / case study angles
+
+    - id: content_engine
+      type: agent
+      config:
+        provider: openai
+        name: gpt-4o
+        api_key: ${API_KEY}
+        role: >
+          You are the Content Engine. Produce multi-channel marketing content:
+
+          1. Email Sequences (cold outreach)
+             - Sequence A: Problem-aware → Solution → Demo CTA (3 emails)
+             - Sequence B: Case study → Value prop → Trial CTA (3 emails)
+             - Each email: Subject line (A/B variants), body, CTA
+
+          2. LinkedIn Content
+             - 4 posts/week: thought leadership, product updates, customer stories
+             - Connection request templates (personalized by persona)
+             - InMail sequences for high-value prospects
+
+          3. Landing Page Copy
+             - Hero section with value proposition
+             - Feature highlights with benefit-focused copy
+             - Social proof section
+             - FAQ addressing common objections
+             - CTA optimization (primary and secondary)
+
+          Track metrics:
+          {content_piece, channel, impressions, clicks, conversions,
+           conversion_rate, a_b_winner}
+
+    - id: campaign_optimizer
+      type: agent
+      config:
+        provider: openai
+        name: gpt-4o
+        api_key: ${API_KEY}
+        role: >
+          You are the Campaign Optimizer. Manage and optimize outreach:
+
+          1. A/B Testing Framework
+             - Test subject lines (2 variants per email)
+             - Test CTAs (demo vs trial vs meeting)
+             - Test send times (morning vs afternoon)
+             - Statistical significance calculator (min 100 sends per variant)
+
+          2. Funnel Analytics
+             - Top of funnel: impressions, website visits
+             - Middle: sign-ups, demo requests
+             - Bottom: beta activations, paid conversions
+             - Track: CAC, conversion rates at each stage
+
+          3. Outreach Automation
+             - LinkedIn: 20 connections/day, personalized messages
+             - Email: Drip campaigns with behavioral triggers
+             - Retargeting: Follow-up sequences for non-responders
+
+          KPI Dashboard:
+          {total_prospects_contacted, response_rate, demo_scheduled,
+           beta_signups, beta_active_users, cac_per_user}
+
+          Target: 20 beta users by end of Month 2.
+        tools:
+          - name: score_my_output
+          - name: save_performance
+          - name: web_search
+
+  edges:
+    - from: persona_builder
+      to: content_engine
+      condition: always
+    - from: content_engine
+      to: campaign_optimizer
+      condition: always

@@ -10,6 +10,7 @@
             >Workflows</router-link>
             <router-link to="/launch" target="_blank" rel="noopener">Launch</router-link>
             <router-link to="/batch-run" target="_blank" rel="noopener">Labaratory</router-link>
+            <router-link to="/orchestration">Orchestration</router-link>
             <router-link to="/performance">Performance</router-link>
             <router-link to="/marketplace">Marketplace</router-link>
             <router-link to="/github">GitHub</router-link>

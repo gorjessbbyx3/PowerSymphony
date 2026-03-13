@@ -88,8 +88,8 @@ class AgentPerformanceStore:
         if self._meta_path.exists():
             try:
                 return json.loads(self._meta_path.read_text())
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Corrupt meta file for %s, resetting: %s", self.agent_id, exc)
         return {
             "agent_id": self.agent_id,
             "prompt_versions": [],
@@ -146,8 +146,8 @@ class AgentPerformanceStore:
                 if line:
                     try:
                         records.append(RunRecord.from_dict(json.loads(line)))
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug("Skipping corrupt run record for %s: %s", self.agent_id, exc)
                 if len(records) >= n:
                     break
             return records
@@ -274,6 +274,6 @@ def list_all_agents() -> List[Dict[str, Any]]:
         try:
             store = get_store(agent_id)
             agents.append(store.get_stats())
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Failed to load agent stats for %s: %s", agent_id, exc)
     return agents

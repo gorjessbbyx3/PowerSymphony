@@ -52,6 +52,10 @@ const routes = [
     {
         path: '/marketplace',
         component: () => import('../pages/MarketplaceView.vue')
+    },
+    {
+        path: '/orchestration',
+        component: () => import('../pages/OrchestrationView.vue')
     }
 ]
 

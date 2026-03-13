@@ -356,6 +356,48 @@ Backend monitoring endpoints:
 | `POST /api/system/cache/clear` | Clear the LLM response cache |
 | `GET /api/sessions` | List active + historical sessions |
 
+## 8-Agent Orchestration System
+
+8 specialized agents with interdependent roles, KPIs, and a shared sync dashboard at `/orchestration`.
+
+| Agent | Role | KPI | Dependencies |
+|-------|------|-----|-------------|
+| Market Researcher | Industry analysis, pain point validation | 50 pain points/week | None (entry point) |
+| Product Strategist | RICE scoring, quarterly roadmap | 20 features/quarter | Market Researcher |
+| Core Engineer | Backend/frontend, RLHF | 12 features/month | Product Strategist |
+| Integration Engineer | API hooks (HubSpot, GitHub, Slack) | 95% uptime, 5+ integrations | Product Strategist, Core Engineer |
+| Tester & Compliance | QA, bias audit, GDPR | 0 critical bugs | Core Engineer, Integration Engineer |
+| Sales & Marketing | Campaigns, A/B tests | 20 beta users (Month 2) | Market Researcher, Product Strategist |
+| Fundraising & Ops | Financials, pitch decks | $1M funding (Month 3) | Market Researcher, Sales & Marketing |
+| Scaler & Innovator | Performance, auto-scaling | 20% time reduction/quarter | Core Engineer, Integration Engineer, Fundraising |
+
+### Orchestration API (`/api/orchestration/*`)
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/orchestration/agents` | List all 8 agents with status/KPIs |
+| `GET /api/orchestration/agents/{id}` | Single agent detail |
+| `PATCH /api/orchestration/agents/{id}` | Update agent status/KPI |
+| `POST /api/orchestration/agents/{id}/run` | Start agent run |
+| `POST /api/orchestration/agents/{id}/complete` | Complete agent run |
+| `GET /api/orchestration/dependencies` | Dependency graph (nodes + edges) |
+| `GET /api/orchestration/kpis` | All KPI progress data |
+| `GET /api/orchestration/summary` | Dashboard summary stats |
+| `GET /api/orchestration/sync` | Sync log entries |
+| `POST /api/orchestration/sync` | Post a sync message |
+
+### YAML Workflows (in `yaml_instance/orchestration/`)
+
+Each agent has a multi-node YAML workflow with specialized sub-agents:
+- `market_researcher.yaml` — Industry Scanner → Pain Point Validator + Competitor Analyst → Research Synthesizer
+- `product_strategist.yaml` — Feedback Collector → Feature Prioritizer → Roadmap Architect → Spec Writer
+- `core_engineer.yaml` — Architecture Planner → Backend Dev + Frontend Dev → Code Reviewer
+- `integration_engineer.yaml` — Integration Planner → API Builder → Health Monitor
+- `tester_compliance.yaml` — Test Planner → Automated Tester + Bias Auditor → QA Reporter
+- `sales_marketing.yaml` — Persona Builder → Content Engine → Campaign Optimizer
+- `fundraising_ops.yaml` — Financial Modeler → Pitch Deck Generator + Metrics Monitor
+- `scaler_innovator.yaml` — Performance Profiler → Auto-Scaler + Innovation Lab → Optimization Executor
+
 ## Key Files
 
 - `runtime/node/agent/providers/` — LLM provider implementations

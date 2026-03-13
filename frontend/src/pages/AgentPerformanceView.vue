@@ -296,10 +296,14 @@ async function resetAgent(agentId) {
 }
 
 async function runRefinement() {
+  if (!refineForm.value.agent_id?.trim()) {
+    error.value = 'Please enter an Agent ID before running refinement.'
+    return
+  }
   refining.value = true
   refineResult.value = null
   try {
-    const res = await fetch(`/api/performance/${refineForm.value.agent_id}/refine`, {
+    const res = await fetch(`/api/performance/${encodeURIComponent(refineForm.value.agent_id.trim())}/refine`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
