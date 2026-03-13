@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 PUBLIC_PATHS = {
     "/api/auth/signup",
     "/api/auth/login",
+    "/api/auth/logout",
     "/health",
     "/health/",
     "/health/live",
@@ -97,16 +98,15 @@ async def correlation_id_middleware(request: Request, call_next: Callable):
 
 async def security_middleware(request: Request, call_next: Callable):
     """Security middleware to validate requests."""
-    # Validate content type for JSON endpoints
     if request.url.path.startswith("/api/") and request.method in ["POST", "PUT", "PATCH"]:
         content_type = request.headers.get("content-type", "").lower()
-        if not content_type.startswith("application/json") and request.method != "GET":
-            # Skip validation for file uploads
-            if not content_type.startswith("multipart/form-data"):
-                raise HTTPException(
-                    status_code=400,
-                    detail="Content-Type must be application/json for API endpoints"
-                )
+        content_length = request.headers.get("content-length", "0")
+        has_body = content_length != "0" and content_type
+        if has_body and not content_type.startswith("application/json") and not content_type.startswith("multipart/form-data"):
+            raise HTTPException(
+                status_code=400,
+                detail="Content-Type must be application/json for API endpoints"
+            )
     
     # Validate file paths to prevent path traversal
     # Check URL path for suspicious patterns

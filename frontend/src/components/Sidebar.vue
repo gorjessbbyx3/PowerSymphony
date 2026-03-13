@@ -2,6 +2,7 @@
     <div class="sidebar">
 
         <nav class="sidebar-nav">
+            <router-link to="/missions" class="missions-link">Missions</router-link>
             <router-link to="/">Home</router-link>
             <router-link to="/tutorial">Tutorial</router-link>
             <router-link

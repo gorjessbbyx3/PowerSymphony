@@ -3,8 +3,8 @@
 from . import (
     agent_performance, artifacts, auth, batch, browser_agent, browser_control,
     cicd, cloud_deploy, collaboration, crm, diagrams, execute, fine_tuning,
-    github_copilot, health, marketplace, orchestration, scraping, sessions,
-    system_stats, uploads, vuegraphs, workflows, websocket,
+    github_copilot, health, marketplace, missions, orchestration, scraping,
+    sessions, system_stats, uploads, vuegraphs, workflows, websocket,
 )
 
 ALL_ROUTERS = [
@@ -32,6 +32,7 @@ ALL_ROUTERS = [
     collaboration.router,
     diagrams.router,
     orchestration.router,
+    missions.router,
 ]
 
 __all__ = ["ALL_ROUTERS"]
