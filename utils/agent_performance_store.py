@@ -230,10 +230,12 @@ class AgentPerformanceStore:
         return list(self._meta.get("prompt_versions", []))
 
     def reset(self) -> None:
-        """Wipe all performance data for this agent."""
+        """Wipe all performance data for this agent and remove disk files."""
         with _LOCK:
             if self._runs_path.exists():
                 self._runs_path.unlink()
+            if self._meta_path.exists():
+                self._meta_path.unlink()
             self._meta = {
                 "agent_id": self.agent_id,
                 "prompt_versions": [],
@@ -243,7 +245,9 @@ class AgentPerformanceStore:
                 "best_score": 0.0,
                 "created_at": time.time(),
             }
-            self._save_meta()
+            # Evict from cache so list_all_agents() won't see it again
+            with _cache_lock:
+                _store_cache.pop(self.agent_id, None)
 
 
 # ------------------------------------------------------------------

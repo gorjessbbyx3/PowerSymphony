@@ -65,7 +65,7 @@
       <div class="detail-header">
         <h2>{{ selectedAgent }}</h2>
         <div class="detail-actions">
-          <button class="btn btn-sm btn-ghost" @click="loadPrompt(selectedAgent)">
+          <button class="btn btn-sm btn-ghost" @click="showBestPrompt(selectedAgent)">
             View Best Prompt
           </button>
           <button class="btn btn-sm btn-danger" @click="resetAgent(selectedAgent)">
@@ -102,15 +102,33 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-for="run in runs" :key="run.run_id" @click="expandedRun = expandedRun === run.run_id ? null : run.run_id">
-                <td class="time-cell">{{ formatTime(run.timestamp) }}</td>
-                <td>
-                  <span class="score-badge small" :class="scoreClass(run.score)">{{ run.score.toFixed(1) }}</span>
-                </td>
-                <td class="center">v{{ run.prompt_version }}</td>
-                <td class="task-cell">{{ run.task.slice(0, 80) }}{{ run.task.length > 80 ? '…' : '' }}</td>
-                <td class="critique-cell">{{ run.critique.slice(0, 100) }}{{ run.critique.length > 100 ? '…' : '' }}</td>
-              </tr>
+              <template v-for="run in runs" :key="run.run_id">
+                <tr class="run-row" @click="expandedRun = expandedRun === run.run_id ? null : run.run_id">
+                  <td class="time-cell">{{ formatTime(run.timestamp) }}</td>
+                  <td>
+                    <span class="score-badge small" :class="scoreClass(run.score)">{{ run.score.toFixed(1) }}</span>
+                  </td>
+                  <td class="center">v{{ run.prompt_version }}</td>
+                  <td class="task-cell">{{ run.task.slice(0, 80) }}{{ run.task.length > 80 ? '…' : '' }}</td>
+                  <td class="critique-cell">{{ run.critique.slice(0, 100) }}{{ run.critique.length > 100 ? '…' : '' }}
+                    <span class="expand-hint">{{ expandedRun === run.run_id ? '▲' : '▼' }}</span>
+                  </td>
+                </tr>
+                <tr v-if="expandedRun === run.run_id" class="run-expanded">
+                  <td colspan="5">
+                    <div class="expanded-body">
+                      <div class="exp-section" v-if="run.task"><strong>Full task:</strong><pre>{{ run.task }}</pre></div>
+                      <div class="exp-section" v-if="run.strengths"><strong>Strengths:</strong> {{ run.strengths }}</div>
+                      <div class="exp-section" v-if="run.critique"><strong>Critique:</strong> {{ run.critique }}</div>
+                      <div class="exp-section" v-if="run.output_snippet"><strong>Output snippet:</strong><pre>{{ run.output_snippet }}</pre></div>
+                      <div class="exp-section run-meta">
+                        Run ID: <code>{{ run.run_id }}</code> &nbsp;·&nbsp;
+                        {{ new Date(run.timestamp * 1000).toLocaleString() }}
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </template>
             </tbody>
           </table>
           <div v-else class="placeholder">No runs yet for this agent.</div>
@@ -246,23 +264,27 @@ async function selectAgent(agentId) {
   runs.value = []
   promptData.value = null
   expandedPrompt.value = null
+  expandedRun.value = null
 
-  const [detailRes, runsRes] = await Promise.all([
+  const [detailRes, runsRes, promptRes] = await Promise.all([
     fetch(`/api/performance/${agentId}`),
     fetch(`/api/performance/${agentId}/runs?n=20`),
+    fetch(`/api/performance/${agentId}/prompt`),
   ])
   if (detailRes.ok) detail.value = await detailRes.json()
   if (runsRes.ok) {
     const d = await runsRes.json()
     runs.value = d.runs || []
   }
-  await loadPrompt(agentId)
+  if (promptRes.ok) promptData.value = await promptRes.json()
 }
 
-async function loadPrompt(agentId) {
+async function showBestPrompt(agentId) {
   const res = await fetch(`/api/performance/${agentId}/prompt`)
-  if (res.ok) promptData.value = await res.json()
-  bestPromptModal.value = { agent_id: agentId, ...(await res.json()) }
+  if (res.ok) {
+    const data = await res.json()
+    bestPromptModal.value = { agent_id: agentId, ...data }
+  }
 }
 
 async function resetAgent(agentId) {
@@ -388,6 +410,14 @@ code { background: #f3f4f6; padding: 2px 6px; border-radius: 3px; font-size: 0.8
 .task-cell { max-width: 280px; }
 .critique-cell { max-width: 300px; color: #6b7280; }
 .center { text-align: center; }
+.run-row { cursor: pointer; }
+.expand-hint { color: #9ca3af; font-size: 0.7rem; margin-left: 6px; }
+.run-expanded td { background: #f9fafb; padding: 0; }
+.expanded-body { padding: 12px 16px; border-left: 3px solid #e5e7eb; margin: 4px 0; }
+.exp-section { margin-bottom: 10px; font-size: 0.82rem; line-height: 1.5; }
+.exp-section pre { background: #fff; border: 1px solid #e5e7eb; border-radius: 4px; padding: 8px; margin-top: 4px; white-space: pre-wrap; font-size: 0.8rem; max-height: 150px; overflow-y: auto; }
+.run-meta { color: #9ca3af; font-size: 0.75rem; }
+.run-meta code { background: #f3f4f6; padding: 1px 5px; border-radius: 3px; }
 
 .prompt-section { margin-top: 28px; }
 .prompt-version { border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px 16px; margin-bottom: 10px; }

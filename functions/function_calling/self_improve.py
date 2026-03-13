@@ -28,16 +28,37 @@ from typing import Any, Dict, List, Optional
 # ---------------------------------------------------------------------------
 
 def _call_judge(prompt: str) -> str:
-    """Call an LLM with a judge prompt and return its response text."""
-    import openai
+    """Call an LLM with a judge prompt and return its response text.
 
-    api_key = os.environ.get("API_KEY") or os.environ.get("OPENAI_API_KEY")
-    base_url = os.environ.get("BASE_URL", "https://api.openai.com/v1")
+    Supports:
+    - OpenAI-compatible: uses API_KEY / OPENAI_API_KEY + BASE_URL
+    - Anthropic native: uses ANTHROPIC_API_KEY when no OpenAI key is available
+    """
     model = os.environ.get("JUDGE_MODEL", "gpt-4o-mini")
+    api_key = os.environ.get("API_KEY") or os.environ.get("OPENAI_API_KEY")
+    anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
 
+    # --- Anthropic native path ---
+    if not api_key and anthropic_key:
+        try:
+            import anthropic
+            anth_model = os.environ.get("JUDGE_MODEL", "claude-3-haiku-20240307")
+            client = anthropic.Anthropic(api_key=anthropic_key)
+            msg = client.messages.create(
+                model=anth_model,
+                max_tokens=1024,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            return msg.content[0].text if msg.content else ""
+        except Exception as exc:
+            return json.dumps({"error": f"Anthropic judge error: {exc}"})
+
+    # --- OpenAI-compatible path ---
     if not api_key:
-        return json.dumps({"error": "No API_KEY set for LLM judge calls."})
+        return json.dumps({"error": "No API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY is set for LLM judge calls."})
 
+    import openai
+    base_url = os.environ.get("BASE_URL", "https://api.openai.com/v1")
     client = openai.OpenAI(api_key=api_key, base_url=base_url)
     try:
         resp = client.chat.completions.create(
