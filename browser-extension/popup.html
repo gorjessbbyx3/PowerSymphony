@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DevAll Agent Controller</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 340px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f0f13;
+      color: #e2e2e8;
+      font-size: 13px;
+    }
+    .header {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      padding: 16px;
+      border-bottom: 1px solid #2a2a3e;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .logo {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, #ff6b35, #f7931e);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+    .header-text h1 { font-size: 14px; font-weight: 600; color: #fff; }
+    .header-text p { font-size: 11px; color: #888; margin-top: 2px; }
+    .status-bar {
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #13131a;
+      border-bottom: 1px solid #1e1e2e;
+    }
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #555;
+      flex-shrink: 0;
+    }
+    .status-dot.connected { background: #22c55e; box-shadow: 0 0 6px #22c55e88; }
+    .status-dot.disconnected { background: #ef4444; }
+    .status-dot.error { background: #f59e0b; }
+    .status-text { font-size: 12px; color: #888; }
+    .session-id { font-size: 10px; color: #555; margin-left: auto; font-family: monospace; }
+    .section { padding: 12px 16px; border-bottom: 1px solid #1e1e2e; }
+    .section-title { font-size: 11px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+    .input-row { display: flex; gap: 6px; margin-bottom: 6px; }
+    input[type="text"] {
+      flex: 1;
+      background: #1a1a2e;
+      border: 1px solid #2a2a3e;
+      border-radius: 6px;
+      padding: 7px 10px;
+      color: #e2e2e8;
+      font-size: 12px;
+      outline: none;
+    }
+    input[type="text"]:focus { border-color: #ff6b35; }
+    button {
+      background: linear-gradient(135deg, #ff6b35, #f7931e);
+      border: none;
+      border-radius: 6px;
+      color: #fff;
+      padding: 7px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    button:hover { opacity: 0.9; }
+    button.secondary {
+      background: #1e1e2e;
+      border: 1px solid #2a2a3e;
+      color: #aaa;
+    }
+    button.secondary:hover { background: #252535; }
+    .log-area {
+      padding: 10px 16px;
+      max-height: 160px;
+      overflow-y: auto;
+    }
+    .log-entry {
+      font-size: 11px;
+      font-family: monospace;
+      padding: 3px 0;
+      border-bottom: 1px solid #1a1a2e;
+      color: #888;
+    }
+    .log-entry.cmd { color: #ff6b35; }
+    .log-entry.ok { color: #22c55e; }
+    .log-entry.err { color: #ef4444; }
+    .footer {
+      padding: 10px 16px;
+      background: #0c0c12;
+      display: flex;
+      gap: 6px;
+      justify-content: flex-end;
+    }
+    .tabs-list { padding: 8px 16px; max-height: 120px; overflow-y: auto; }
+    .tab-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 0;
+      border-bottom: 1px solid #1a1a2e;
+    }
+    .tab-item .tab-title { font-size: 11px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tab-item .tab-btn { background: #1e1e2e; border: 1px solid #2a2a3e; border-radius: 4px; color: #888; padding: 2px 7px; font-size: 10px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">🤖</div>
+    <div class="header-text">
+      <h1>DevAll Agent Controller</h1>
+      <p>AI browser automation bridge</p>
+    </div>
+  </div>
+
+  <div class="status-bar">
+    <div class="status-dot" id="statusDot"></div>
+    <span class="status-text" id="statusText">Connecting...</span>
+    <span class="session-id" id="sessionId"></span>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Server Connection</div>
+    <div class="input-row">
+      <input type="text" id="serverUrl" placeholder="ws://localhost:8000/ws/browser-agent" />
+      <button onclick="saveAndReconnect()">Connect</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Quick Actions</div>
+    <div class="input-row">
+      <button onclick="takeScreenshot()" class="secondary">📸 Screenshot</button>
+      <button onclick="getPageContent()" class="secondary">📄 Get Page</button>
+      <button onclick="getElements()" class="secondary">🔍 Elements</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Activity Log</div>
+    <div class="log-area" id="logArea">
+      <div class="log-entry">Waiting for connection...</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <button class="secondary" onclick="clearLog()">Clear Log</button>
+    <button onclick="openDevAll()">Open DevAll</button>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

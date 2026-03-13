@@ -12,6 +12,21 @@ ProviderRegistry.register(
 )
 
 try:
+    from runtime.node.agent.providers.claude_provider import ClaudeProvider
+except ImportError:
+    ClaudeProvider = None
+
+if ClaudeProvider is not None:
+    ProviderRegistry.register(
+        "claude",
+        ClaudeProvider,
+        label="Anthropic Claude",
+        summary="Anthropic Claude models (claude-opus-4-5, claude-sonnet-4-5, claude-haiku-3-5, etc.)",
+    )
+else:
+    print("Claude provider not registered: anthropic library not found.")
+
+try:
     from runtime.node.agent.providers.gemini_provider import GeminiProvider
 except ImportError:
     GeminiProvider = None
