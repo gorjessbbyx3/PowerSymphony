@@ -3,7 +3,6 @@ import re
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Any, Dict
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
@@ -13,23 +12,6 @@ from utils.exceptions import ResourceNotFoundError, ValidationError
 from utils.structured_logger import get_server_logger, LogType
 
 router = APIRouter()
-
-
-@router.get("/api/sessions")
-async def list_sessions() -> Dict[str, Any]:
-    """List all active and historically persisted sessions."""
-    try:
-        from server.state import get_websocket_manager
-        manager = get_websocket_manager()
-        store = manager.session_store
-        active = store.list_sessions()
-        historical = store.load_historical_sessions()
-        return {
-            "active": active,
-            "historical": historical,
-        }
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
 
 
 @router.get("/api/sessions/{session_id}/download")

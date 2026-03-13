@@ -1,1 +1,1 @@
-"""Server package for PowerSymphony workflow system"""
+"""Server package for DevAll workflow system"""

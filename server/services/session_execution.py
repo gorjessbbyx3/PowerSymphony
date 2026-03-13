@@ -52,7 +52,7 @@ class SessionExecutionController:
             )
 
         start_time = time.time()
-        poll_interval = 0.05
+        poll_interval = 1.0
         try:
             while True:
                 if session.cancel_event.is_set():

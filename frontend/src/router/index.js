@@ -20,42 +20,6 @@ const routes = [
     {
         path: '/workflows/:name?',
         component: () => import('../pages/WorkflowWorkbench.vue')
-    },
-    {
-        path: '/system',
-        component: () => import('../pages/SystemStatsView.vue')
-    },
-    {
-        path: '/performance',
-        component: () => import('../pages/AgentPerformanceView.vue')
-    },
-    {
-        path: '/github',
-        component: () => import('../pages/GitHubView.vue')
-    },
-    {
-        path: '/diagrams',
-        component: () => import('../pages/DiagramView.vue')
-    },
-    {
-        path: '/collaboration',
-        component: () => import('../pages/CollaborationView.vue')
-    },
-    {
-        path: '/cicd',
-        component: () => import('../pages/CICDView.vue')
-    },
-    {
-        path: '/fine-tuning',
-        component: () => import('../pages/FineTuningView.vue')
-    },
-    {
-        path: '/marketplace',
-        component: () => import('../pages/MarketplaceView.vue')
-    },
-    {
-        path: '/orchestration',
-        component: () => import('../pages/OrchestrationView.vue')
     }
 ]
 

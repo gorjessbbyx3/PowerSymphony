@@ -1,4 +1,4 @@
-"""Custom middleware for the PowerSymphony workflow system."""
+"""Custom middleware for the DevAll workflow system."""
 
 import uuid
 from typing import Callable, Awaitable
@@ -78,32 +78,12 @@ async def security_middleware(request: Request, call_next: Callable):
     return response
 
 
-_rate_limit_store: dict = {}
-_RATE_LIMIT_WINDOW = 60
-_RATE_LIMIT_MAX = int(os.getenv("RATE_LIMIT_MAX_REQUESTS", "120"))
-
-
 async def rate_limit_middleware(request: Request, call_next: Callable):
-    """In-memory per-IP sliding-window rate limiter."""
-    client_ip = request.client.host if request.client else "unknown"
-    now = time.time()
-
-    window_start = now - _RATE_LIMIT_WINDOW
-    entries = _rate_limit_store.get(client_ip, [])
-    entries = [t for t in entries if t > window_start]
-
-    if len(entries) >= _RATE_LIMIT_MAX:
-        return JSONResponse(
-            status_code=429,
-            content={"detail": "Rate limit exceeded. Try again later."},
-        )
-
-    entries.append(now)
-    _rate_limit_store[client_ip] = entries
-
+    """Rate limiting middleware (basic implementation)."""
+    # This is a simple rate limiting implementation
+    # In production, you would use Redis or other storage for tracking
+    # This is just a placeholder for now
     response = await call_next(request)
-    response.headers["X-RateLimit-Limit"] = str(_RATE_LIMIT_MAX)
-    response.headers["X-RateLimit-Remaining"] = str(max(0, _RATE_LIMIT_MAX - len(entries)))
     return response
 
 
@@ -111,8 +91,6 @@ def add_cors_middleware(app: FastAPI) -> None:
     """Configure and attach CORS middleware."""
     # Dev defaults; override via CORS_ALLOW_ORIGINS (comma-separated)
     default_origins = [
-        "http://localhost:5000",
-        "http://127.0.0.1:5000",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
     ]
@@ -122,8 +100,8 @@ def add_cors_middleware(app: FastAPI) -> None:
         origin_regex = None
     else:
         origins = default_origins
-        # Allow localhost, 127.0.0.1 on any port, and Replit proxy domains
-        origin_regex = r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$|^https://.*\.repl\.co$|^https://.*\.replit\.dev$|^https://.*\.kirk\.replit\.dev$"
+        # Helpful in dev: allow localhost/127.0.0.1 on any port
+        origin_regex = r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"
 
     app.add_middleware(
         CORSMiddleware,

@@ -48,11 +48,12 @@ const cubes = Array.from({ length: 80 }, (_, i) => ({
     </div>
     <div class="content-wrapper">
       <h1 class="title">
-        <span class="title-line title-highlight">PowerSymphony</span>
+        <span class="title-line">ChatDev 2.0</span>
+        <span class="title-line title-highlight">DevAll</span>
       </h1>
       
       <p class="introduction">
-        PowerSymphony is a zero-code multi-agent platform for developing everything, with a workspace built for designing, visualizing, and running agent workflows.
+        ChatDev 2.0 - DevAll is a zero-code multi-agent platform for developing everything, with a workspace built for designing, visualizing, and running agent workflows.
       </p>
 
       <div class="actions">
