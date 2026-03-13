@@ -100,8 +100,8 @@ def add_cors_middleware(app: FastAPI) -> None:
         origin_regex = None
     else:
         origins = default_origins
-        # Helpful in dev: allow localhost/127.0.0.1 on any port
-        origin_regex = r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"
+        # Allow localhost, 127.0.0.1 on any port, and Replit proxy domains
+        origin_regex = r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$|^https://.*\.repl\.co$|^https://.*\.replit\.dev$|^https://.*\.kirk\.replit\.dev$"
 
     app.add_middleware(
         CORSMiddleware,
