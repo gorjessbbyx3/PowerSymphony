@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "DevAll Agent Browser Controller",
+  "name": "PowerSymphony Agent Browser Controller",
   "version": "1.0.0",
-  "description": "Allows DevAll AI agents to view, click, type and interact with web pages for social media automation.",
+  "description": "Allows PowerSymphony AI agents to view, click, type and interact with web pages for social media automation.",
   "permissions": [
     "activeTab",
     "tabs",
@@ -27,7 +27,7 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "DevAll Agent Controller",
+    "default_title": "PowerSymphony Agent Controller",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",

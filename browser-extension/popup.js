@@ -1,4 +1,4 @@
-// DevAll Agent - Popup Script
+// PowerSymphony Agent - Popup Script
 
 const logArea = document.getElementById('logArea');
 const statusDot = document.getElementById('statusDot');
@@ -20,7 +20,7 @@ function log(text, type = '') {
 function setStatus(status, sid) {
   currentStatus = status;
   statusDot.className = `status-dot ${status}`;
-  const labels = { connected: 'Connected to DevAll', disconnected: 'Disconnected', error: 'Connection error', connecting: 'Connecting...' };
+  const labels = { connected: 'Connected to PowerSymphony', disconnected: 'Disconnected', error: 'Connection error', connecting: 'Connecting...' };
   statusText.textContent = labels[status] || status;
   if (sid) sessionIdEl.textContent = sid.slice(0, 8) + '...';
 }
@@ -107,6 +107,6 @@ function clearLog() {
   log('Log cleared');
 }
 
-function openDevAll() {
+function openPowerSymphony() {
   chrome.tabs.create({ url: 'http://localhost:5000' });
 }

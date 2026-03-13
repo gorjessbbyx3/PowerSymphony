@@ -57,8 +57,8 @@ async def get_stats() -> Dict[str, Any]:
 
     # Env info (safe subset)
     stats["config"] = {
-        "llm_cache_enabled": os.environ.get("DEVALL_LLM_CACHE", "true"),
-        "max_parallel_tools": os.environ.get("DEVALL_MAX_PARALLEL_TOOLS", "8"),
+        "llm_cache_enabled": os.environ.get("POWERSYMPHONY_LLM_CACHE", "true"),
+        "max_parallel_tools": os.environ.get("POWERSYMPHONY_MAX_PARALLEL_TOOLS", "8"),
         "llm_cache_max_entries": os.environ.get("LLM_CACHE_MAX_ENTRIES", "512"),
     }
 

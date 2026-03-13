@@ -17,10 +17,10 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
-_PERF_DIR = Path(os.environ.get("DEVALL_PERF_DIR", "WareHouse/.agent_performance"))
+_PERF_DIR = Path(os.environ.get("POWERSYMPHONY_PERF_DIR", "WareHouse/.agent_performance"))
 _PERF_DIR.mkdir(parents=True, exist_ok=True)
 
-_MAX_RUNS_IN_MEMORY = int(os.environ.get("DEVALL_MAX_PERF_RUNS", "500"))
+_MAX_RUNS_IN_MEMORY = int(os.environ.get("POWERSYMPHONY_MAX_PERF_RUNS", "500"))
 _LOCK = Lock()
 
 

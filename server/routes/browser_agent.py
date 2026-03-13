@@ -85,7 +85,7 @@ async def send_browser_command(
         RuntimeError if no browser is connected or command times out
     """
     if not _browser_sessions:
-        raise RuntimeError("No browser extension connected. Install and connect the DevAll extension.")
+        raise RuntimeError("No browser extension connected. Install and connect the PowerSymphony extension.")
 
     ws = _browser_sessions.get(session_id) if session_id else next(iter(_browser_sessions.values()))
     if not ws:

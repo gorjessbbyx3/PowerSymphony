@@ -360,7 +360,7 @@ class AgentNodeExecutor(NodeExecutor):
         last_input = ''.join(msg.text_content() for msg in conversation) if conversation else ""
 
         # --- LLM response cache (temperature-zero or explicitly opted-in calls) ---
-        cache_enabled = os.environ.get("DEVALL_LLM_CACHE", "true").lower() == "true"
+        cache_enabled = os.environ.get("POWERSYMPHONY_LLM_CACHE", "true").lower() == "true"
         temperature = float(call_options.get("temperature", agent_config.params.get("temperature", 1.0) if agent_config else 1.0))
         use_cache = cache_enabled and temperature == 0.0
 
@@ -668,7 +668,7 @@ class AgentNodeExecutor(NodeExecutor):
         if context_state is not None:
             context_state["node_id"] = node.id
 
-        max_parallel = int(os.environ.get("DEVALL_MAX_PARALLEL_TOOLS", "8"))
+        max_parallel = int(os.environ.get("POWERSYMPHONY_MAX_PARALLEL_TOOLS", "8"))
 
         try:
             if len(tool_calls) <= 1:
@@ -683,7 +683,7 @@ class AgentNodeExecutor(NodeExecutor):
                 self._ensure_not_cancelled()
                 with concurrent.futures.ThreadPoolExecutor(
                     max_workers=min(len(tool_calls), max_parallel),
-                    thread_name_prefix="devall-tool",
+                    thread_name_prefix="powersymphony-tool",
                 ) as pool:
                     futures = [
                         pool.submit(

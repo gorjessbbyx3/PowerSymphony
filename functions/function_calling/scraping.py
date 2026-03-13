@@ -85,7 +85,7 @@ def scrape_links(url: str, base_url: str = "") -> str:
     from bs4 import BeautifulSoup
     from urllib.parse import urljoin, urlparse
 
-    headers = {"User-Agent": "Mozilla/5.0 DevAll-Scraper/1.0"}
+    headers = {"User-Agent": "Mozilla/5.0 PowerSymphony-Scraper/1.0"}
     try:
         resp = requests.get(url, headers=headers, timeout=15)
         resp.raise_for_status()
@@ -123,7 +123,7 @@ def scrape_table(url: str, table_index: int = 0) -> str:
     import csv
     import io
 
-    headers = {"User-Agent": "Mozilla/5.0 DevAll-Scraper/1.0"}
+    headers = {"User-Agent": "Mozilla/5.0 PowerSymphony-Scraper/1.0"}
     try:
         resp = requests.get(url, headers=headers, timeout=15)
         resp.raise_for_status()
@@ -171,7 +171,7 @@ def extract_structured_data(url: str, fields: str) -> str:
     except json.JSONDecodeError as exc:
         return json.dumps({"error": f"Invalid fields JSON: {exc}"})
 
-    headers = {"User-Agent": "Mozilla/5.0 DevAll-Scraper/1.0"}
+    headers = {"User-Agent": "Mozilla/5.0 PowerSymphony-Scraper/1.0"}
     try:
         resp = requests.get(url, headers=headers, timeout=15)
         resp.raise_for_status()
@@ -218,7 +218,7 @@ def batch_scrape(urls_json: str, selector: str = "") -> str:
 
     urls = urls[:20]  # cap at 20 to avoid abuse
 
-    headers = {"User-Agent": "Mozilla/5.0 DevAll-Scraper/1.0"}
+    headers = {"User-Agent": "Mozilla/5.0 PowerSymphony-Scraper/1.0"}
 
     def _scrape_one(url: str) -> Dict[str, Any]:
         try:

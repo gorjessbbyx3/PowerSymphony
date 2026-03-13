@@ -1,5 +1,5 @@
-// DevAll Agent Browser Controller - Background Service Worker
-// Manages WebSocket connection to DevAll server and relays commands to content scripts
+// PowerSymphony Agent Browser Controller - Background Service Worker
+// Manages WebSocket connection to PowerSymphony server and relays commands to content scripts
 
 let ws = null;
 let serverUrl = 'ws://localhost:8000/ws/browser-agent';
@@ -30,7 +30,7 @@ function connectToServer() {
 
     ws.onopen = () => {
       isConnected = true;
-      console.log('[DevAll] Connected to server');
+      console.log('[PowerSymphony] Connected to server');
       if (!sessionId) sessionId = generateId();
       chrome.storage.local.set({ sessionId });
       ws.send(JSON.stringify({
@@ -54,13 +54,13 @@ function connectToServer() {
     };
 
     ws.onerror = (err) => {
-      console.error('[DevAll] WebSocket error', err);
+      console.error('[PowerSymphony] WebSocket error', err);
       isConnected = false;
       broadcastStatus('error');
     };
 
   } catch (e) {
-    console.error('[DevAll] Failed to connect', e);
+    console.error('[PowerSymphony] Failed to connect', e);
     scheduleReconnect();
   }
 }

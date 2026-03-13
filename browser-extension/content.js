@@ -1,9 +1,9 @@
-// DevAll Agent Browser Controller - Content Script
+// PowerSymphony Agent Browser Controller - Content Script
 // Injected into every page to assist with DOM inspection and interaction
 
 (function() {
-  if (window.__devallAgentInjected) return;
-  window.__devallAgentInjected = true;
+  if (window.__powersymphonyAgentInjected) return;
+  window.__powersymphonyAgentInjected = true;
 
   // Listen for messages from the background service worker
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -17,7 +17,7 @@
   });
 
   function highlightElement(selector) {
-    const prev = document.querySelector('.__devall_highlight');
+    const prev = document.querySelector('.__powersymphony_highlight');
     if (prev) prev.remove();
 
     const el = document.querySelector(selector);
@@ -25,7 +25,7 @@
 
     const rect = el.getBoundingClientRect();
     const overlay = document.createElement('div');
-    overlay.className = '__devall_highlight';
+    overlay.className = '__powersymphony_highlight';
     overlay.style.cssText = `
       position: fixed;
       top: ${rect.top}px;
