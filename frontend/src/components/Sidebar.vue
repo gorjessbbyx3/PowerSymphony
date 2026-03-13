@@ -10,6 +10,15 @@
             >Workflows</router-link>
             <router-link to="/launch" target="_blank" rel="noopener">Launch</router-link>
             <router-link to="/batch-run" target="_blank" rel="noopener">Labaratory</router-link>
+            <router-link to="/orchestration">Orchestration</router-link>
+            <router-link to="/performance">Performance</router-link>
+            <router-link to="/marketplace">Marketplace</router-link>
+            <router-link to="/github">GitHub</router-link>
+            <router-link to="/diagrams">Diagrams</router-link>
+            <router-link to="/collaboration">Collab</router-link>
+            <router-link to="/cicd">CI/CD</router-link>
+            <router-link to="/fine-tuning">Fine-Tuning</router-link>
+            <router-link to="/system">System</router-link>
         </nav>
         <div class="sidebar-actions">
             <button class="settings-nav-btn" @click="showSettingsModal = true" title="Settings">

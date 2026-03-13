@@ -1,0 +1,110 @@
+version: "1.0"
+vars:
+  AGENT_ROLE: "integration_engineer"
+  KPI_TARGET: "95% uptime, 5+ integrations by launch"
+  DEPENDS_ON: "product_strategist, core_engineer"
+  FEEDS_INTO: "tester_compliance, scaler_innovator"
+
+graph:
+  id: integration_engineer_agent
+  description: >
+    Integration Engineer Agent — Handles API hooks to CRM tools (HubSpot/Salesforce),
+    CI/CD platforms, cloud providers, and external data sources.
+    KPI: 95% uptime, 5+ integrations by launch.
+
+  start: [integration_planner]
+
+  nodes:
+    - id: integration_planner
+      type: agent
+      config:
+        provider: openai
+        name: gpt-4o
+        api_key: ${API_KEY}
+        role: >
+          You are the Integration Planner. Design the integration architecture:
+
+          Priority Integrations (by launch):
+          1. HubSpot CRM — Contact/deal management, activity logging
+          2. GitHub — Repo management, PR automation, code search
+          3. Slack — Notifications, command interface, workflow triggers
+          4. OpenAI/Anthropic/Google — LLM provider abstraction
+          5. AWS/GCP — Cloud deployment, S3/GCS storage
+
+          For each integration, define:
+          {integration_name, api_version, auth_method (OAuth2/API_key/JWT),
+           endpoints_needed[], rate_limits, error_handling_strategy,
+           health_check_endpoint, fallback_behavior,
+           estimated_effort_days, uptime_target}
+
+          Design a universal integration adapter pattern with:
+          - Connection pooling
+          - Circuit breaker for failing services
+          - Retry with exponential backoff
+          - Health monitoring per integration
+
+    - id: api_builder
+      type: agent
+      config:
+        provider: openai
+        name: gpt-4o
+        api_key: ${API_KEY}
+        role: >
+          You are the API Builder. For each planned integration:
+
+          1. Implement the adapter class following the universal pattern
+          2. Write authentication handlers (OAuth2 flow, API key rotation)
+          3. Build CRUD operations for each external service
+          4. Implement webhook receivers for real-time events
+          5. Create tool functions usable in YAML workflows
+          6. Build rate limit awareness (respect external API limits)
+
+          Code standards:
+          - Async/await for all external calls
+          - Comprehensive error types (AuthError, RateLimitError, TimeoutError)
+          - Structured logging with correlation IDs
+          - Configurable timeouts and retries
+        tools:
+          - name: execute_code
+          - name: web_search
+
+    - id: health_monitor
+      type: agent
+      config:
+        provider: openai
+        name: gpt-4o
+        api_key: ${API_KEY}
+        role: >
+          You are the Integration Health Monitor. Design and implement:
+
+          1. Health Check System
+             - Periodic ping to each integration endpoint
+             - Response time tracking (p50, p95, p99)
+             - Error rate monitoring per integration
+             - Automatic alerting when uptime drops below 95%
+
+          2. Dashboard Metrics
+             - Uptime percentage per integration (target: 95%)
+             - Request count / success rate / error rate
+             - Average latency trends
+             - Circuit breaker status (open/closed/half-open)
+
+          3. Incident Response
+             - Automatic failover to backup endpoints
+             - Degraded mode operation (cache + queue)
+             - Incident log with root cause analysis
+
+          KPI Output:
+          {integration, uptime_pct, avg_latency_ms, error_rate_pct,
+           requests_today, circuit_status, last_incident}
+        tools:
+          - name: score_my_output
+          - name: save_performance
+
+  edges:
+    - from: integration_planner
+      to: api_builder
+      condition: always
+    - from: api_builder
+      to: health_monitor
+      condition: always

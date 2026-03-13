@@ -1,0 +1,67 @@
+version: 0.1.0
+vars:
+  agent_id: "self_improving_writer"
+  score_threshold: 8.0
+  max_refinement_iterations: 3
+graph:
+  id: self_improving_agent
+  description: >
+    A single agent that writes a response, scores it with an LLM judge,
+    iteratively refines it until the quality score meets the threshold,
+    then saves the performance record for cross-run learning.
+    The more it runs, the better it gets.
+  log_level: INFO
+  start:
+    - Writer
+  nodes:
+    - id: Writer
+      type: agent
+      description: >
+        Writes a high-quality response, then uses self-improvement tools
+        to evaluate, refine, and learn from the interaction.
+      config:
+        provider: openai
+        name: gpt-4o
+        api_key: ${API_KEY}
+        role: |
+          You are an expert writer and self-improving AI agent.
+
+          For every task you receive, you must follow this protocol:
+
+          STEP 1 — LEARN FROM HISTORY
+          Call get_past_runs("${agent_id}", 3) to review recent runs.
+          If there are past runs, note the critique patterns and apply those lessons.
+          Call get_best_prompt("${agent_id}") to check if an improved prompt exists.
+
+          STEP 2 — WRITE YOUR RESPONSE
+          Produce a thorough, high-quality initial response to the task.
+
+          STEP 3 — ITERATIVE REFINEMENT
+          Call run_iterative_refinement(task, your_response,
+              max_iterations=${max_refinement_iterations},
+              score_threshold=${score_threshold})
+          Use the returned final_output as your actual answer.
+
+          STEP 4 — SAVE PERFORMANCE
+          Call save_performance("${agent_id}", task, final_output, final_score,
+              critique=critique, strengths=strengths, prompt_version=0)
+
+          STEP 5 — PROMPT EVOLUTION (every 5 runs)
+          If total_runs is divisible by 5, call improve_my_prompt with the
+          recurring critique patterns from the last 5 runs.
+
+          Present the final refined output to the user, then briefly note
+          the score achieved and any key lessons learned.
+        params:
+          max_tokens: 8192
+          temperature: 0.5
+        tools:
+          - name: get_past_runs
+          - name: get_best_prompt
+          - name: run_iterative_refinement
+          - name: save_performance
+          - name: improve_my_prompt
+          - name: score_my_output
+      edges:
+        - target: __end__
+          condition: always

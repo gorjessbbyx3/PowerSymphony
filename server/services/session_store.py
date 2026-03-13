@@ -1,13 +1,19 @@
 """Session persistence primitives for workflow runs."""
 
+import json
 import logging
+import os
 import time
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 from threading import Event
 from typing import Any, Dict, Optional
 
 from server.services.artifact_events import ArtifactEventQueue
+
+_SESSION_STORE_DIR = Path("WareHouse/.sessions")
+_SESSION_STORE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 class SessionStatus(Enum):
@@ -64,6 +70,38 @@ class WorkflowSessionStore:
         self._sessions: Dict[str, WorkflowSession] = {}
         self.logger = logging.getLogger(__name__)
 
+    def _persist(self, session: "WorkflowSession") -> None:
+        """Write lightweight session metadata to disk for crash recovery."""
+        try:
+            record = {
+                "session_id": session.session_id,
+                "yaml_file": session.yaml_file,
+                "task_prompt": session.task_prompt,
+                "task_attachments": session.task_attachments,
+                "status": session.status.value,
+                "created_at": session.created_at,
+                "updated_at": session.updated_at,
+                "current_node_id": session.current_node_id,
+                "error_message": session.error_message,
+            }
+            path = _SESSION_STORE_DIR / f"{session.session_id}.json"
+            path.write_text(json.dumps(record, indent=2))
+        except Exception as exc:
+            self.logger.debug("Session persist failed for %s: %s", session.session_id, exc)
+
+    def load_historical_sessions(self) -> Dict[str, Dict[str, Any]]:
+        """Return metadata for all sessions persisted to disk (past runs)."""
+        historical: Dict[str, Dict[str, Any]] = {}
+        for path in _SESSION_STORE_DIR.glob("*.json"):
+            try:
+                record = json.loads(path.read_text())
+                sid = record.get("session_id")
+                if sid and sid not in self._sessions:
+                    historical[sid] = record
+            except Exception:
+                pass
+        return historical
+
     def create_session(
         self,
         *,
@@ -79,6 +117,7 @@ class WorkflowSessionStore:
             task_attachments=list(attachments or []),
         )
         self._sessions[session_id] = session
+        self._persist(session)
         self.logger.info("Created session %s for workflow %s", session_id, yaml_file)
         return session
 
@@ -97,6 +136,7 @@ class WorkflowSessionStore:
         for key, value in kwargs.items():
             if hasattr(session, key):
                 setattr(session, key, value)
+        self._persist(session)
         self.logger.info("Updated session %s status to %s", session_id, status.value)
 
     def set_session_error(self, session_id: str, error_message: str) -> None:

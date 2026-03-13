@@ -1,0 +1,246 @@
+graph:
+  id: fintech_api
+  description: "Fintech API Generator: Domain-specific workflow for financial technology applications. Generates production-ready financial APIs with live market data integration, transaction processing, portfolio analytics, and regulatory compliance checks."
+  log_level: DEBUG
+  is_majority_voting: false
+  nodes:
+    - id: USER
+      type: passthrough
+      description: ''
+      context_window: 0
+      config: {}
+
+    - id: FINAL
+      type: passthrough
+      description: ''
+      context_window: 0
+      config: {}
+
+    - id: Financial Product Architect
+      type: agent
+      description: 'Designs the fintech product architecture and compliance framework'
+      context_window: -1
+      config:
+        name: gpt-4o
+        provider: openai
+        base_url: ${BASE_URL}
+        api_key: ${API_KEY}
+        role: |-
+          You are a Fintech Product Architect with deep expertise in financial APIs, market data, and regulatory compliance.
+
+          Analyze the user's fintech request and produce a complete architecture document:
+
+          ## Fintech Product Architecture
+
+          ### Product Overview
+          - What financial service/product this is
+          - Target users (retail investors, institutions, developers)
+          - Revenue model
+
+          ### Core API Modules
+          Design these modules as needed:
+          - **Market Data**: Real-time/historical prices (stocks, crypto, forex, commodities)
+          - **Portfolio**: Holdings, P&L, allocation, rebalancing
+          - **Trading**: Order placement, execution, order book
+          - **Payments**: ACH, wire, card processing hooks
+          - **Analytics**: Performance metrics, risk assessment, backtesting
+          - **User Management**: KYC/AML integration points
+
+          ### Data Sources
+          - Yahoo Finance (free, stock quotes)
+          - CoinGecko (free, crypto prices)
+          - Alpha Vantage (free tier, comprehensive market data)
+          - Plaid (bank account linking)
+          - Stripe (payment processing)
+
+          ### API Design
+          - RESTful endpoints for all modules
+          - Authentication: API keys + JWT
+          - Rate limiting strategy
+          - Webhook design for real-time events
+
+          ### Compliance Considerations
+          - SEC/FINRA regulations (if US securities)
+          - PCI-DSS (if handling payments)
+          - KYC/AML requirements
+          - Data retention policies
+          - Privacy (GDPR, CCPA)
+
+          ### Infrastructure
+          - Database design (PostgreSQL for transactions, Redis for caching)
+          - Message queue for async processing (Celery/Redis or RabbitMQ)
+          - Audit logging requirements
+        params: {}
+        tooling:
+          - type: function
+            config:
+              tools:
+                - name: get_stock_quote
+                - name: get_crypto_price
+                - name: get_crypto_trending
+              timeout:
+        thinking: null
+        memories: []
+        retry: null
+
+    - id: Fintech API Developer
+      type: agent
+      description: 'Implements the core financial API with live data integration'
+      context_window: -1
+      config:
+        name: gpt-4o
+        provider: openai
+        base_url: ${BASE_URL}
+        api_key: ${API_KEY}
+        role: |-
+          You are a Senior Backend Engineer specializing in financial APIs and market data integration.
+          You have the architecture from the Financial Product Architect.
+
+          Build the complete fintech API:
+
+          **Framework**: FastAPI (Python) or Express (Node.js) — match the user's preferred stack
+
+          **Endpoints to implement** (select relevant ones from the architecture):
+
+          ```
+          # Market Data
+          GET  /api/v1/market/quote/{symbol}          # Live stock/crypto quote
+          GET  /api/v1/market/historical/{symbol}     # Historical OHLCV data
+          GET  /api/v1/market/search?q={query}        # Search symbols
+          GET  /api/v1/market/trending                # Trending assets
+
+          # Portfolio
+          GET  /api/v1/portfolio                      # User's portfolio summary
+          POST /api/v1/portfolio/holdings             # Add/update holding
+          DELETE /api/v1/portfolio/holdings/{id}      # Remove holding
+          GET  /api/v1/portfolio/performance          # P&L and returns
+          GET  /api/v1/portfolio/allocation           # Asset allocation breakdown
+
+          # Analytics
+          GET  /api/v1/analytics/risk/{symbol}        # Beta, volatility, Sharpe ratio
+          POST /api/v1/analytics/backtest             # Backtest a strategy
+          GET  /api/v1/analytics/correlation          # Correlation matrix
+
+          # Auth
+          POST /api/v1/auth/register
+          POST /api/v1/auth/login
+          POST /api/v1/auth/refresh
+          ```
+
+          Include:
+          - Database models (SQLAlchemy or Prisma)
+          - Data validation with Pydantic/Zod
+          - JWT authentication middleware
+          - Rate limiting (slowapi or express-rate-limit)
+          - Comprehensive error responses
+          - OpenAPI/Swagger documentation (auto-generated)
+
+          Save all files using the file tools.
+        params: {}
+        tooling:
+          - type: function
+            config:
+              tools:
+                - name: save_file
+                - name: read_file_segment
+                - name: create_folder
+                - name: list_directory
+                - name: apply_text_edits
+                - name: describe_available_files
+                - name: get_stock_quote
+                - name: get_crypto_price
+                - name: get_crypto_trending
+              timeout:
+        thinking: null
+        memories: []
+        retry: null
+
+    - id: Compliance and Risk Engineer
+      type: agent
+      description: 'Adds compliance checks, audit logging, and risk management'
+      context_window: -1
+      config:
+        name: gpt-4o
+        provider: openai
+        base_url: ${BASE_URL}
+        api_key: ${API_KEY}
+        role: |-
+          You are a Fintech Compliance and Risk Engineer. You have the API implementation from the previous developer.
+
+          Add these critical compliance and risk components:
+
+          **1. Audit Logging Middleware**
+          Every API call must be logged with:
+          - Timestamp (ISO 8601)
+          - User ID, IP address
+          - Endpoint, method, request body hash
+          - Response code, latency
+          - Session ID
+          Store in append-only audit log (database + file backup)
+
+          **2. Rate Limiting & Fraud Detection**
+          - Per-user rate limits (e.g., 100 req/min)
+          - Suspicious pattern detection (rapid repeated orders)
+          - IP blocklist integration
+
+          **3. KYC/AML Stub**
+          - User verification flow (document upload placeholder)
+          - PEP/Sanctions list check stub
+          - Transaction monitoring for large amounts (>$10,000 CTR threshold)
+
+          **4. Risk Checks**
+          Before any trade/transaction:
+          - Sufficient balance check
+          - Position limit check (max X% of portfolio in single asset)
+          - Daily loss limit check
+          - Market hours check (for equities)
+
+          **5. Data Privacy**
+          - PII field encryption at rest (email, SSN, bank account)
+          - Data masking in logs
+          - GDPR data deletion endpoint: `DELETE /api/v1/user/data`
+
+          **6. Compliance Report**
+          Write a compliance checklist: what's implemented vs. needs a real compliance team.
+
+          Save all files using the file tools.
+        params: {}
+        tooling:
+          - type: function
+            config:
+              tools:
+                - name: save_file
+                - name: read_file_segment
+                - name: create_folder
+                - name: list_directory
+                - name: apply_text_edits
+                - name: describe_available_files
+              timeout:
+        thinking: null
+        memories: []
+        retry: null
+
+  edges:
+    - from: USER
+      to: Financial Product Architect
+      condition:
+        type: always
+        config: {}
+    - from: Financial Product Architect
+      to: Fintech API Developer
+      condition:
+        type: always
+        config: {}
+    - from: Fintech API Developer
+      to: Compliance and Risk Engineer
+      condition:
+        type: always
+        config: {}
+    - from: Compliance and Risk Engineer
+      to: FINAL
+      condition:
+        type: always
+        config: {}
+
+  start:
+    - USER

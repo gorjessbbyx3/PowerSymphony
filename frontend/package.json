@@ -1,5 +1,5 @@
 {
-  "name": "devall",
+  "name": "powersymphony",
   "private": true,
   "version": "0.0.0",
   "license": "Apache-2.0",
@@ -17,6 +17,7 @@
     "js-yaml": "^4.1.0",
     "markdown-it": "^14.1.0",
     "markdown-it-anchor": "^9.2.0",
+    "mermaid": "^11.13.0",
     "vue": "^3.5.22",
     "vue-router": "^4.6.0"
   },

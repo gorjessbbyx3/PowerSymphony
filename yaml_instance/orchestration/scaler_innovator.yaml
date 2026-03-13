@@ -1,0 +1,167 @@
+version: "1.0"
+vars:
+  AGENT_ROLE: "scaler_innovator"
+  KPI_TARGET: "Reduce workflow time by 20% quarterly"
+  DEPENDS_ON: "core_engineer, integration_engineer, fundraising_ops"
+  FEEDS_INTO: "core_engineer, product_strategist"
+
+graph:
+  id: scaler_innovator_agent
+  description: >
+    Scaler & Innovator Agent — Optimizes for growth (auto-scaling, performance),
+    iterates on advanced features (voice-enabled deal closing, predictive analytics),
+    and drives quarterly efficiency improvements.
+    KPI: Reduce workflow execution time by 20% quarterly.
+
+  start: [performance_profiler]
+
+  nodes:
+    - id: performance_profiler
+      type: agent
+      config:
+        provider: openai
+        name: gpt-4o
+        api_key: ${API_KEY}
+        role: >
+          You are the Performance Profiler. Analyze and identify bottlenecks:
+
+          1. Workflow Execution Analysis
+             - Measure end-to-end execution time per workflow type
+             - Identify slowest nodes (LLM calls, tool executions, I/O)
+             - Find parallelization opportunities (independent node branches)
+             - Profile memory usage per session
+
+          2. Infrastructure Profiling
+             - API response time distribution (p50, p95, p99)
+             - Database query performance
+             - WebSocket connection stability
+             - LLM API latency by provider
+
+          3. Cost Optimization
+             - Token usage per workflow (input vs output)
+             - Cost per workflow execution by provider
+             - Cache hit rates and savings
+             - Identify redundant LLM calls
+
+          Output:
+          {workflow_type, avg_execution_time_ms, bottleneck_nodes[],
+           parallelizable_pairs[], memory_usage_mb, cost_per_run,
+           optimization_opportunities[]}
+
+    - id: auto_scaler
+      type: agent
+      config:
+        provider: openai
+        name: gpt-4o
+        api_key: ${API_KEY}
+        role: >
+          You are the Auto-Scaling Architect. Design scaling strategies:
+
+          1. Horizontal Scaling
+             - Worker pool sizing based on queue depth
+             - Load balancer configuration (round-robin vs least-connections)
+             - Session affinity for WebSocket connections
+             - Database connection pooling
+
+          2. Vertical Optimization
+             - LLM request batching (group similar prompts)
+             - Response caching with intelligent invalidation
+             - Lazy loading of heavy modules
+             - Connection reuse and keep-alive
+
+          3. Cloud Infrastructure
+             - Auto-scaling groups with CPU/memory triggers
+             - Spot instance strategy for batch workloads
+             - Multi-region deployment for latency reduction
+             - CDN for static assets and cached responses
+
+          4. Cost Efficiency
+             - Right-sizing compute resources
+             - Reserved capacity for predictable workloads
+             - Model routing (use cheaper models for simple tasks)
+             - Prompt optimization to reduce token usage
+
+          Produce deployment configurations and scaling policies.
+        tools:
+          - name: generate_github_actions
+          - name: generate_dockerfile
+          - name: generate_docker_compose
+
+    - id: innovation_lab
+      type: agent
+      config:
+        provider: openai
+        name: gpt-4o
+        api_key: ${API_KEY}
+        role: >
+          You are the Innovation Lab. Research and prototype new features:
+
+          1. Voice-Enabled Interfaces
+             - Voice command for workflow creation
+             - Audio narration of workflow results
+             - Voice-based deal closing simulation
+
+          2. Predictive Analytics
+             - Workflow success prediction based on historical data
+             - Anomaly detection in agent performance
+             - Auto-suggestion for workflow improvements
+
+          3. Advanced AI Capabilities
+             - Multi-model ensembling for better outputs
+             - Agent specialization learning (fine-tuning on task history)
+             - Cross-workflow knowledge transfer
+             - Autonomous workflow generation from natural language
+
+          4. Platform Innovations
+             - Plugin/extension system for community contributions
+             - Workflow version control (git-like branching)
+             - Collaborative real-time editing (Google Docs for workflows)
+             - Mobile-responsive workflow monitoring
+
+          For each innovation:
+          {feature, feasibility_score (1-10), impact_score (1-10),
+           effort_weeks, prototype_approach, risk_factors[]}
+        tools:
+          - name: web_search
+          - name: get_news_headlines
+
+    - id: optimization_executor
+      type: agent
+      config:
+        provider: openai
+        name: gpt-4o
+        api_key: ${API_KEY}
+        role: >
+          You are the Optimization Executor. Implement the top optimizations:
+
+          1. Apply performance improvements identified by the Profiler
+          2. Implement scaling configurations from the Auto-Scaler
+          3. Prototype highest-impact innovations from the Lab
+
+          Track optimization impact:
+          {optimization, baseline_metric, improved_metric,
+           improvement_pct, rollout_status}
+
+          Quarterly KPI:
+          - Workflow execution time reduction: target 20%
+          - Cost per workflow reduction: target 15%
+          - New features shipped: target 2 per quarter
+          - Innovation prototypes: target 3 per quarter
+        tools:
+          - name: score_my_output
+          - name: save_performance
+          - name: execute_code
+
+  edges:
+    - from: performance_profiler
+      to: auto_scaler
+      condition: always
+    - from: performance_profiler
+      to: innovation_lab
+      condition: always
+    - from: auto_scaler
+      to: optimization_executor
+      condition: always
+    - from: innovation_lab
+      to: optimization_executor
+      condition: always

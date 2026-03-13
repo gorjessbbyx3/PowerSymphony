@@ -1,4 +1,4 @@
-"""Structured logging utilities for the DevAll workflow system."""
+"""Structured logging utilities for the PowerSymphony workflow system."""
 
 import json
 import logging
