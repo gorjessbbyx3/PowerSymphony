@@ -75,6 +75,10 @@ const routes = [
     {
         path: '/missions/:id',
         component: () => import('../pages/MissionChatView.vue')
+    },
+    {
+        path: '/missions/:id/office',
+        component: () => import('../pages/MissionOfficeView.vue')
     }
 ]
 

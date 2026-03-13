@@ -45,7 +45,9 @@ PowerSymphony is a full-stack multi-agent AI workflow orchestration SaaS platfor
 - A phased plan with timelines is generated; user reviews and approves.
 - Once approved, all agents begin autonomous execution of their assigned tasks.
 - Mission states: gathering_info → planning → awaiting_approval → executing → completed
-- Frontend: `/missions` (list/create), `/missions/:id` (chat view with team panel)
+- Frontend: `/missions` (list/create), `/missions/:id` (chat view with team panel), `/missions/:id/office` (virtual office dashboard)
+- Virtual Office: Workstation grid for 8 agents with SVG avatars, KPIs, agent detail panel, real-time discussion feed with visible reasoning, auto-polling, Chat/Office toggle buttons
+- Agent avatars: `AgentAvatar.vue` component with 8 unique SVG icons (crown, search, lightbulb, code, plug, shield, megaphone, chart)
 - Backend: `server/routes/missions.py`, `server/services/mission_service.py`
 - DB tables: `missions`, `mission_messages`
 

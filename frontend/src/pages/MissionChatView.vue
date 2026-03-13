@@ -15,6 +15,10 @@
             </div>
           </div>
           <div class="header-actions" v-if="mission">
+            <button class="view-toggle-btn" @click="$router.push(`/missions/${route.params.id}/office`)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+              Office View
+            </button>
             <button
               v-if="mission.status === 'awaiting_approval'"
               class="approve-btn"
@@ -426,7 +430,27 @@ function renderMarkdown(text) {
 .mission-status-badge.executing { color: #3fb950; }
 .mission-status-badge.executing .status-dot { background: #3fb950; animation: pulse 1.5s ease-in-out infinite; }
 
-.header-actions { flex-shrink: 0; }
+.header-actions { flex-shrink: 0; display: flex; gap: 8px; align-items: center; }
+
+.view-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: #c9d1d9;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.view-toggle-btn:hover {
+  background: rgba(255,255,255,0.08);
+  color: #e6edf3;
+}
 
 .approve-btn {
   display: flex;

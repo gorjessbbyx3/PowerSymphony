@@ -14,7 +14,14 @@ TEAM_AGENTS = [
         "role": "Chief Strategist & Project Coordinator",
         "avatar": "A",
         "color": "#58a6ff",
-        "description": "Coordinates the entire team, breaks down goals into actionable plans, and ensures alignment across all departments."
+        "description": "Coordinates the entire team, breaks down goals into actionable plans, and ensures alignment across all departments.",
+        "kpis": [
+            "100% team alignment on weekly sprint goals",
+            "Daily sync completion rate > 95%",
+            "Milestone delivery within 10% of timeline"
+        ],
+        "dependencies": ["All agents report to Alex", "Resolves cross-team blockers"],
+        "icon": "crown"
     },
     {
         "id": "market_researcher",
@@ -22,7 +29,14 @@ TEAM_AGENTS = [
         "role": "Market Intelligence & Competitive Analysis",
         "avatar": "M",
         "color": "#f0883e",
-        "description": "Researches target markets, identifies pain points, analyzes competitors, and validates product-market fit."
+        "description": "Analyzes sales data, identifies target industries (e.g., SaaS firms with 50-500 employees), maps competitive landscapes, and validates product-market fit through data-driven research.",
+        "kpis": [
+            "Generate 50 validated pain points/week",
+            "Competitive analysis covering top 10 players",
+            "TAM/SAM/SOM estimation within 2 weeks"
+        ],
+        "dependencies": ["Feeds insights to Jordan (Product Strategy)", "Data informs Taylor's marketing"],
+        "icon": "search"
     },
     {
         "id": "product_strategist",
@@ -30,7 +44,14 @@ TEAM_AGENTS = [
         "role": "Product Roadmap & Feature Prioritization",
         "avatar": "J",
         "color": "#a371f7",
-        "description": "Defines the product vision, creates feature roadmaps, and prioritizes what to build first for maximum impact."
+        "description": "Defines features (e.g., lead scoring via NLP), creates quarterly roadmaps based on user feedback loops, and prioritizes what to build first for maximum impact.",
+        "kpis": [
+            "Roadmap with quarterly updates based on user feedback",
+            "Feature prioritization score > 80% alignment with user needs",
+            "PRD completion within 1 week of research handoff"
+        ],
+        "dependencies": ["Receives research from Maya", "Hands specs to Sam for engineering"],
+        "icon": "lightbulb"
     },
     {
         "id": "core_engineer",
@@ -38,7 +59,14 @@ TEAM_AGENTS = [
         "role": "Architecture & Core Development",
         "avatar": "S",
         "color": "#3fb950",
-        "description": "Designs system architecture, writes core code, builds the MVP, and handles technical decisions."
+        "description": "Builds the orchestration engine including agent communication protocols and RLHF for self-improvement. Designs system architecture and writes core code for the MVP.",
+        "kpis": [
+            "Deploy MVP backend in 4 weeks",
+            "Code coverage > 80%",
+            "API response time < 200ms p95"
+        ],
+        "dependencies": ["Builds from Jordan's specs", "Riley handles deployment of Sam's code"],
+        "icon": "code"
     },
     {
         "id": "integration_engineer",
@@ -46,7 +74,15 @@ TEAM_AGENTS = [
         "role": "APIs, Infrastructure & DevOps",
         "avatar": "R",
         "color": "#79c0ff",
-        "description": "Handles third-party integrations, deployment infrastructure, monitoring, and system reliability."
+        "description": "Handles API hooks to tools like HubSpot/Salesforce, deployment infrastructure, monitoring, and system reliability. Manages cloud infrastructure and CI/CD pipelines.",
+        "kpis": [
+            "95% uptime SLA",
+            "5+ integrations ready by launch",
+            "Deploy pipeline under 10 minutes",
+            "Auto-scaling configured for 10x traffic spikes"
+        ],
+        "dependencies": ["Deploys Sam's code", "Integrations feed Casey's test suite"],
+        "icon": "plug"
     },
     {
         "id": "tester_compliance",
@@ -54,7 +90,15 @@ TEAM_AGENTS = [
         "role": "Testing, Security & Regulatory Compliance",
         "avatar": "C",
         "color": "#d2a8ff",
-        "description": "Ensures quality through testing, handles security audits, and manages regulatory compliance (GDPR, etc)."
+        "description": "Simulates workflows, ensures ethical AI with bias checks and data security. Manages automated testing, security audits, and regulatory compliance.",
+        "kpis": [
+            "Zero critical bugs in beta release",
+            "GDPR compliance certification before launch",
+            "Security audit pass rate > 95%",
+            "Test coverage > 85% on critical paths"
+        ],
+        "dependencies": ["Tests Sam and Riley's code", "Compliance sign-off needed before Taylor's launch"],
+        "icon": "shield"
     },
     {
         "id": "sales_marketing",
@@ -62,7 +106,15 @@ TEAM_AGENTS = [
         "role": "User Acquisition, Branding & Sales",
         "avatar": "T",
         "color": "#f778ba",
-        "description": "Creates marketing strategies, builds brand presence, acquires users, and drives growth metrics."
+        "description": "Crafts pitches, runs A/B tests on outreach, builds brand presence, acquires users via LinkedIn/email campaigns, and drives growth metrics.",
+        "kpis": [
+            "Acquire 20 beta users in Month 2",
+            "Email open rate > 25%",
+            "Landing page conversion > 5%",
+            "Social media reach: 10K impressions/week"
+        ],
+        "dependencies": ["Uses Maya's market data for targeting", "Needs Casey's compliance approval for campaigns"],
+        "icon": "megaphone"
     },
     {
         "id": "fundraising_ops",
@@ -70,7 +122,15 @@ TEAM_AGENTS = [
         "role": "Business Operations, Funding & Revenue",
         "avatar": "O",
         "color": "#ffa657",
-        "description": "Manages budgets, fundraising strategy, revenue models, and overall business operations."
+        "description": "Models financials, generates pitch decks, monitors metrics like CAC:LTV ratio. Manages budgets, fundraising strategy, and revenue model optimization.",
+        "kpis": [
+            "CAC:LTV ratio > 1:3",
+            "Secure simulated/angel funding equivalent to $1M in Month 3",
+            "Monthly burn rate tracking with < 5% variance",
+            "Revenue model validated within 6 weeks"
+        ],
+        "dependencies": ["Financial models informed by Taylor's acquisition data", "Budget approvals for Sam's infrastructure"],
+        "icon": "chart"
     },
 ]
 
@@ -206,7 +266,7 @@ def _transition_to_planning(mission: dict, history: list):
 
     team_discussion = _generate_team_discussion(mission, history)
     for msg in team_discussion:
-        _add_message(mission_id, "agent", msg["agent_id"], msg["content"])
+        _add_message(mission_id, "agent", msg["agent_id"], msg["content"], msg.get("metadata"))
 
     plan = _generate_plan(mission, history)
 
@@ -225,17 +285,83 @@ def _transition_to_executing(mission: dict):
     _update_status(mission_id, "executing")
     _add_message(mission_id, "system", None, "Plan approved! The team is now executing the mission.")
 
-    for agent in TEAM_AGENTS[1:]:
-        phase = _get_agent_phase(agent["id"], mission.get("plan"))
-        msg = f"Starting work on my assigned tasks. {phase}"
-        _add_message(mission_id, "agent", agent["id"], msg)
+    execution_msgs = _generate_execution_kickoff(mission)
+    for msg in execution_msgs:
+        _add_message(mission_id, "agent", msg["agent_id"], msg["content"], msg.get("metadata"))
 
     _add_message(
         mission_id, "agent", "team_leader",
         "All team members have been briefed and are now working on their assigned tasks. "
         "I'll coordinate their efforts and keep you updated on progress. "
-        "You can check in anytime by sending a message."
+        "You can check in anytime by sending a message.",
+        {"reasoning": "Confirming all agents are aligned and work streams are active. Monitoring dependencies between teams."}
     )
+
+
+def _generate_execution_kickoff(mission: dict) -> list:
+    messages = []
+    plan = mission.get("plan")
+
+    kickoff_data = {
+        "market_researcher": {
+            "content": "Starting deep-dive market analysis. I'm pulling data on target industries and mapping competitor positioning. My goal is to have 50 validated pain points documented within the first week. I'll share my findings with Jordan for product strategy alignment.",
+            "reasoning": "Beginning with broad market scan, then narrowing to specific segments. Using competitive intelligence frameworks to identify gaps we can exploit.",
+            "task": "Market analysis & competitive research"
+        },
+        "product_strategist": {
+            "content": "I'm defining the core feature set based on our discussions. Working on the PRD now — I'll have the initial roadmap ready for review within 3 days. Coordinating with Sam on technical feasibility for each feature.",
+            "reasoning": "Prioritizing features by impact vs. effort matrix. Focusing on the 20% of features that deliver 80% of value for our target users.",
+            "task": "Product roadmap & feature specification"
+        },
+        "core_engineer": {
+            "content": "Setting up the development environment and architecting the core system. I'm going with a microservices approach for scalability. Sprint 1 focus: authentication, core data models, and the primary API endpoints. Target: MVP backend in 4 weeks.",
+            "reasoning": "Chose microservices over monolith for better scaling and team parallelism. Starting with the most critical path items to unblock other team members.",
+            "task": "System architecture & MVP development"
+        },
+        "integration_engineer": {
+            "content": "Spinning up the cloud infrastructure now. CI/CD pipeline will be ready by end of day. I'm also mapping out the integration points — starting with the most critical third-party APIs. Target: 5+ integrations ready for beta.",
+            "reasoning": "Infrastructure-first approach ensures Sam can deploy continuously. Prioritizing integrations by user-facing impact and technical complexity.",
+            "task": "Infrastructure setup & API integrations"
+        },
+        "tester_compliance": {
+            "content": "Setting up the automated testing framework and establishing our quality gates. I'm also starting the GDPR compliance checklist — we need to be compliant from day one, not as an afterthought. Running initial security scans on the architecture.",
+            "reasoning": "Shift-left testing strategy: catch bugs early when they're cheapest to fix. Compliance requirements will shape data handling patterns across all teams.",
+            "task": "QA framework & compliance audit"
+        },
+        "sales_marketing": {
+            "content": "Building the go-to-market strategy now. Starting with our ideal customer profile based on Maya's research. I'm designing the landing page and setting up our LinkedIn outreach sequences. Target: 20 beta users in Month 2.",
+            "reasoning": "Starting marketing before product is ready creates demand and validates messaging. A/B testing outreach templates to optimize conversion from day one.",
+            "task": "GTM strategy & beta user acquisition"
+        },
+        "fundraising_ops": {
+            "content": "Financial model is in progress — projecting 18-month runway scenarios. I'm tracking our burn rate from day one and building the pitch deck for potential investors. Targeting CAC:LTV ratio > 1:3 as our north star metric.",
+            "reasoning": "Early financial modeling helps us make smart resource allocation decisions. Building investor materials now so we're ready when the time is right.",
+            "task": "Financial modeling & fundraising prep"
+        }
+    }
+
+    for agent in TEAM_AGENTS[1:]:
+        data = kickoff_data.get(agent["id"], {})
+        phase = _get_agent_phase(agent["id"], plan)
+
+        if data:
+            content = data["content"]
+            metadata = {
+                "reasoning": data["reasoning"],
+                "current_task": data["task"],
+                "status": "working"
+            }
+        else:
+            content = f"Starting work on my assigned tasks. {phase}"
+            metadata = {"status": "working"}
+
+        messages.append({
+            "agent_id": agent["id"],
+            "content": content,
+            "metadata": metadata
+        })
+
+    return messages
 
 
 def _add_message(mission_id: int, role: str, agent_name: str | None, content: str, metadata: dict | None = None):
@@ -338,21 +464,35 @@ def _generate_team_discussion(mission: dict, history: list) -> list:
     messages = []
 
     discussion_data = [
-        ("market_researcher", f"I've done preliminary research on the market for this goal. There's significant opportunity here, but we need to be strategic about positioning. The competitive landscape has some established players, but I've identified key gaps we can exploit."),
-        ("product_strategist", f"Based on Maya's research, I'm thinking we should focus on a phased approach. Phase 1 should be the core value proposition — the thing that makes users say 'I need this.' We can layer on advanced features in Phase 2 and 3."),
-        ("core_engineer", f"From a technical standpoint, I can architect this using modern, scalable infrastructure. I'll set up the core system in the first sprint. We'll need to make some technology choices early, but I have strong recommendations based on the requirements."),
-        ("integration_engineer", f"I'll handle the deployment pipeline and make sure we have proper monitoring from day one. I've mapped out the integrations we'll need. I can have the infrastructure ready in parallel with Sam's core development."),
-        ("tester_compliance", f"I'll set up automated testing from the start — that's non-negotiable for quality. I'm also reviewing any regulatory requirements. We need to be compliant from day one, not as an afterthought."),
-        ("sales_marketing", f"I'm already thinking about our go-to-market strategy. We need to build buzz early. I'll create a landing page and start building an audience before the product is even ready. Community building starts now."),
-        ("fundraising_ops", f"I've put together initial cost projections. I'll track our burn rate and revenue metrics closely. I'm also exploring potential revenue models that align with this type of product."),
+        ("market_researcher", 
+         f"I've done preliminary research on the market for this goal. There's significant opportunity here, but we need to be strategic about positioning. The competitive landscape has some established players, but I've identified key gaps we can exploit. I'll have my full analysis with 50 validated pain points ready within the week.",
+         "Scanning market databases and competitor APIs. Initial TAM estimate looks promising. Cross-referencing with industry reports to validate assumptions."),
+        ("product_strategist", 
+         f"Based on Maya's initial research, I'm thinking we should focus on a phased approach. Phase 1 should be the core value proposition — the thing that makes users say 'I need this.' I'm designing the feature roadmap now with quarterly update cycles based on user feedback loops.",
+         "Evaluating Maya's market gaps against technical feasibility. Prioritizing features using RICE framework (Reach, Impact, Confidence, Effort)."),
+        ("core_engineer", 
+         f"From a technical standpoint, I can architect this using modern, scalable infrastructure. I'll set up the core system in the first sprint with a target of MVP backend in 4 weeks. Building with RLHF-ready agent communication protocols so we can iterate based on real usage.",
+         "Evaluating microservices vs monolith tradeoffs. Leaning toward microservices for team parallelism. Will need Riley's input on deployment topology."),
+        ("integration_engineer", 
+         f"I'll handle the deployment pipeline and make sure we have proper monitoring from day one. I've mapped out the integrations we'll need — targeting HubSpot, Salesforce, and 3 other critical APIs for launch. I can have the infrastructure ready in parallel with Sam's core development. Targeting 95% uptime from day one.",
+         "Reviewing API documentation for target integrations. CI/CD pipeline will use GitHub Actions with automated testing gates. Need Casey to define test criteria."),
+        ("tester_compliance", 
+         f"I'll set up automated testing from the start — that's non-negotiable for quality. I'm also reviewing GDPR and data security requirements. We need to be compliant from day one, not as an afterthought. My target: zero critical bugs in beta. Running initial bias checks on any AI components.",
+         "Establishing test pyramid: unit > integration > e2e. GDPR checklist started — data mapping, consent flows, right-to-deletion. Need Sam's data model to complete DPA."),
+        ("sales_marketing", 
+         f"I'm already thinking about our go-to-market strategy. Based on Maya's target audience data, I'll create targeted LinkedIn and email campaigns. My target is 20 beta users in Month 2. I'll start A/B testing outreach messages this week. Community building starts now — we need buzz before launch.",
+         "Designing ICP (Ideal Customer Profile) based on Maya's research. Will run 3 outreach variants simultaneously. Landing page copy needs to reflect Jordan's core value prop."),
+        ("fundraising_ops", 
+         f"I've put together initial cost projections and I'm modeling our CAC:LTV ratios — targeting > 1:3. I'll track our burn rate closely and have the pitch deck ready by Month 2. Also exploring revenue models that align with this type of product. Target: secure equivalent of $1M in angel funding by Month 3.",
+         "Building 18-month financial model with 3 scenarios (conservative, base, optimistic). Revenue model analysis: SaaS subscription vs usage-based vs hybrid. Will need Taylor's acquisition cost data for unit economics."),
     ]
 
     system_prompt = f"""You are {{agent_name}}, the {{agent_role}} on an AI team. The team goal is: "{goal}"
     
 Write a brief (2-3 sentences) contribution to the team discussion from your professional perspective. 
-Be specific to the goal, show expertise, and reference what you'll actually do. Be concise and actionable."""
+Be specific to the goal, show expertise, and reference what you'll actually do. Reference other team members by name when relevant. Be concise and actionable."""
 
-    for agent_id, fallback in discussion_data:
+    for agent_id, fallback, reasoning in discussion_data:
         agent = AGENT_MAP[agent_id]
         result = _try_llm_call(
             system_prompt.replace("{{agent_name}}", agent["name"].split("—")[0].strip())
@@ -362,6 +502,11 @@ Be specific to the goal, show expertise, and reference what you'll actually do. 
         messages.append({
             "agent_id": agent_id,
             "content": result or fallback,
+            "metadata": {
+                "reasoning": reasoning,
+                "phase": "planning",
+                "status": "analyzing"
+            }
         })
 
     return messages
