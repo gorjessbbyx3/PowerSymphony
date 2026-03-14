@@ -16,6 +16,30 @@ const routes = [
         path: '/',
         component: () => import('../pages/HomeView.vue')
     },
+
+    // --- Primary navigation ---
+    {
+        path: '/missions',
+        component: () => import('../pages/MissionsView.vue')
+    },
+    {
+        path: '/missions/:id',
+        component: () => import('../pages/MissionChatView.vue')
+    },
+    {
+        path: '/missions/:id/office',
+        component: () => import('../pages/MissionOfficeView.vue')
+    },
+    {
+        path: '/activity',
+        component: () => import('../pages/ActivityFeedView.vue')
+    },
+    {
+        path: '/team',
+        component: () => import('../pages/TeamView.vue')
+    },
+
+    // --- Secondary / internal pages (accessible but not in main nav) ---
     {
         path: '/tutorial',
         component: () => import('../pages/TutorialView.vue')
@@ -67,18 +91,6 @@ const routes = [
     {
         path: '/orchestration',
         component: () => import('../pages/OrchestrationView.vue')
-    },
-    {
-        path: '/missions',
-        component: () => import('../pages/MissionsView.vue')
-    },
-    {
-        path: '/missions/:id',
-        component: () => import('../pages/MissionChatView.vue')
-    },
-    {
-        path: '/missions/:id/office',
-        component: () => import('../pages/MissionOfficeView.vue')
     }
 ]
 

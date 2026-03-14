@@ -15,25 +15,13 @@
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                 Missions
             </router-link>
-            <router-link to="/orchestration" class="nav-link">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.2 4.2l2.8 2.8M17 17l2.8 2.8M1 12h4M19 12h4M4.2 19.8l2.8-2.8M17 7l2.8-2.8"/></svg>
-                Orchestration
-            </router-link>
-            <router-link to="/workflows" :class="['nav-link', { active: isWorkflowsActive }]">
+            <router-link to="/activity" class="nav-link">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-                Workflows
+                Activity
             </router-link>
-            <router-link to="/marketplace" class="nav-link">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
-                Marketplace
-            </router-link>
-            <router-link to="/performance" class="nav-link">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
-                Performance
-            </router-link>
-            <router-link to="/system" class="nav-link">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-                System
+            <router-link to="/team" class="nav-link">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                Team
             </router-link>
         </nav>
 
@@ -62,17 +50,15 @@
 </template>
 
 <script setup>
-import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { computed, ref } from 'vue'
+import { RouterLink, useRouter } from 'vue-router'
+import { ref } from 'vue'
 import SettingsModal from './SettingsModal.vue'
 import { authState, logoutUser } from '../utils/auth'
 
 const showSettingsModal = ref(false)
 const showUserMenu = ref(false)
 
-const route = useRoute()
 const router = useRouter()
-const isWorkflowsActive = computed(() => route.path.startsWith('/workflows'))
 
 const userInitial = computed(() => {
   if (authState.user?.display_name) return authState.user.display_name[0].toUpperCase()

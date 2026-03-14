@@ -8,6 +8,7 @@ const stats = ref({ total: 0, executing: 0, completed: 0, planning: 0 })
 const loading = ref(true)
 
 const recentMissions = computed(() => missions.value.slice(0, 4))
+const activeMissions = computed(() => missions.value.filter(m => m.status === 'executing'))
 
 const cubeColors = ['#aaffcd', '#99eaf9', '#a0c4ff', '#d2a8ff', '#f0883e']
 const particles = Array.from({ length: 50 }, (_, i) => ({
@@ -71,37 +72,69 @@ const teamMembers = [
 
     <div class="home-content">
       <section class="hero-section">
-        <div class="hero-badge">AI-Powered Team Orchestration</div>
+        <div class="hero-badge">AI Agents That Build Together</div>
         <h1 class="hero-title">
           <span class="gradient-text">PowerSymphony</span>
         </h1>
-        <p class="hero-subtitle">Give your AI team a mission. They'll research, plan, build, and launch it — autonomously.</p>
+        <p class="hero-subtitle">Describe what you want. Your AI team handles everything — planning, building, and shipping — while keeping you in the loop every step of the way.</p>
         <div class="hero-actions">
           <button class="btn-primary" @click="router.push('/missions')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             Start a Mission
           </button>
-          <button class="btn-secondary" @click="router.push('/tutorial')">How It Works</button>
+          <button class="btn-secondary" @click="router.push('/activity')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            View Activity
+          </button>
         </div>
       </section>
 
       <section class="stats-row" v-if="stats.total > 0">
-        <div class="stat-card">
+        <div class="stat-card" @click="router.push('/missions')">
           <div class="stat-number">{{ stats.total }}</div>
           <div class="stat-label">Total Missions</div>
         </div>
-        <div class="stat-card executing">
+        <div class="stat-card executing" @click="router.push('/activity')">
           <div class="stat-number">{{ stats.executing }}</div>
           <div class="stat-label">In Progress</div>
           <div class="stat-pulse" v-if="stats.executing > 0"></div>
         </div>
-        <div class="stat-card">
+        <div class="stat-card" @click="router.push('/missions')">
           <div class="stat-number">{{ stats.planning }}</div>
           <div class="stat-label">Planning</div>
         </div>
-        <div class="stat-card">
+        <div class="stat-card" @click="router.push('/missions')">
           <div class="stat-number">{{ stats.completed }}</div>
           <div class="stat-label">Completed</div>
+        </div>
+      </section>
+
+      <!-- Active missions with live status -->
+      <section v-if="activeMissions.length > 0" class="active-section">
+        <div class="section-header">
+          <h2 class="section-title">
+            <span class="live-dot"></span>
+            Agents Working Now
+          </h2>
+          <button class="see-all-btn" @click="router.push('/activity')">View activity</button>
+        </div>
+        <div class="active-grid">
+          <div v-for="m in activeMissions" :key="m.id" class="active-card glass-card" @click="router.push(`/missions/${m.id}`)">
+            <div class="active-card-top">
+              <div class="card-status executing">
+                <span class="dot"></span>Executing
+              </div>
+              <span class="card-time">{{ timeAgo(m.updated_at || m.created_at) }}</span>
+            </div>
+            <h3 class="card-goal">{{ m.goal }}</h3>
+            <div class="active-progress">
+              <div class="progress-bar"><div class="progress-fill" style="width: 45%"></div></div>
+            </div>
+            <div class="active-agents-row">
+              <div v-for="(t, i) in teamMembers.slice(0, 4)" :key="i" class="mini-avatar" :style="{ background: t.color, zIndex: 8-i }">{{ t.avatar }}</div>
+              <span class="agents-working">4 agents working</span>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -126,9 +159,10 @@ const teamMembers = [
       <section class="team-section">
         <div class="section-header">
           <h2 class="section-title">Your AI Team</h2>
+          <button class="see-all-btn" @click="router.push('/team')">Meet the team</button>
         </div>
         <div class="team-grid">
-          <div v-for="t in teamMembers" :key="t.avatar" class="team-card glass-card">
+          <div v-for="t in teamMembers" :key="t.avatar" class="team-card glass-card" @click="router.push('/team')">
             <div class="team-avatar" :style="{ background: t.color }">{{ t.avatar }}</div>
             <div class="team-name">{{ t.name }}</div>
             <div class="team-role">{{ t.role }}</div>
@@ -136,38 +170,25 @@ const teamMembers = [
         </div>
       </section>
 
-      <section class="capabilities-section">
+      <section class="how-section">
         <div class="section-header">
-          <h2 class="section-title">What Your Team Can Do</h2>
+          <h2 class="section-title">How It Works</h2>
         </div>
-        <div class="capabilities-grid">
-          <div class="capability glass-card">
-            <div class="cap-icon" style="background: rgba(63,185,80,0.15); color: #3fb950;">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-            </div>
-            <h3>Build Software</h3>
-            <p>Full-stack apps, APIs, mobile apps — your engineering team handles it all.</p>
+        <div class="how-grid">
+          <div class="how-card glass-card">
+            <div class="how-step">1</div>
+            <h3>You set the goal</h3>
+            <p>Describe what you want to build, grow, or accomplish. Be as ambitious as you want.</p>
           </div>
-          <div class="capability glass-card">
-            <div class="cap-icon" style="background: rgba(240,136,62,0.15); color: #f0883e;">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
-            </div>
-            <h3>Market & Grow</h3>
-            <p>SEO, social media, content marketing, and user acquisition at scale.</p>
+          <div class="how-card glass-card">
+            <div class="how-step">2</div>
+            <h3>Agents self-organize</h3>
+            <p>Your team of 8 AI agents automatically creates workflows, assigns tasks, and coordinates their work.</p>
           </div>
-          <div class="capability glass-card">
-            <div class="cap-icon" style="background: rgba(163,113,247,0.15); color: #a371f7;">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-            </div>
-            <h3>Research & Plan</h3>
-            <p>Market research, competitive analysis, product roadmaps, and strategy.</p>
-          </div>
-          <div class="capability glass-card">
-            <div class="cap-icon" style="background: rgba(247,120,186,0.15); color: #f778ba;">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-            </div>
-            <h3>Launch & Scale</h3>
-            <p>Deployment, infrastructure, monitoring, and scaling to millions.</p>
+          <div class="how-card glass-card">
+            <div class="how-step">3</div>
+            <h3>You stay in the loop</h3>
+            <p>Watch progress in real-time, give feedback when asked, and approve key decisions. The agents handle the rest.</p>
           </div>
         </div>
       </section>
@@ -266,7 +287,7 @@ const teamMembers = [
 .hero-subtitle {
   font-size: 20px;
   color: #8b949e;
-  max-width: 600px;
+  max-width: 640px;
   margin: 0 auto 32px;
   line-height: 1.5;
 }
@@ -299,6 +320,9 @@ const teamMembers = [
 }
 
 .btn-secondary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 14px 28px;
   background: rgba(255,255,255,0.05);
   border: 1px solid #30363d;
@@ -332,6 +356,7 @@ const teamMembers = [
   position: relative;
   overflow: hidden;
   transition: all 0.3s;
+  cursor: pointer;
 }
 
 .stat-card:hover {
@@ -339,9 +364,7 @@ const teamMembers = [
   transform: translateY(-2px);
 }
 
-.stat-card.executing {
-  border-color: rgba(63,185,80,0.3);
-}
+.stat-card.executing { border-color: rgba(63,185,80,0.3); }
 
 .stat-pulse {
   position: absolute;
@@ -354,19 +377,63 @@ const teamMembers = [
   animation: pulse 2s ease-in-out infinite;
 }
 
-.stat-number {
-  font-size: 36px;
-  font-weight: 700;
-  color: #e6edf3;
-  line-height: 1;
-  margin-bottom: 6px;
+.stat-number { font-size: 36px; font-weight: 700; color: #e6edf3; line-height: 1; margin-bottom: 6px; }
+.stat-label { font-size: 13px; color: #8b949e; font-weight: 500; }
+
+/* Active missions */
+.active-section { margin-bottom: 48px; }
+
+.live-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #3fb950;
+  margin-right: 8px;
+  animation: pulse 1.5s ease-in-out infinite;
+  vertical-align: middle;
 }
 
-.stat-label {
-  font-size: 13px;
-  color: #8b949e;
-  font-weight: 500;
+.active-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+
+.active-card { padding: 24px; cursor: pointer; }
+
+.active-card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+
+.active-progress { margin-bottom: 12px; }
+
+.progress-bar {
+  width: 100%;
+  height: 4px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 2px;
+  overflow: hidden;
 }
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3fb950, #58a6ff);
+  border-radius: 2px;
+  transition: width 0.5s ease;
+}
+
+.active-agents-row { display: flex; align-items: center; gap: 8px; }
+
+.mini-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 10px;
+  color: #fff;
+  border: 2px solid #0a0e17;
+  margin-right: -6px;
+}
+
+.agents-working { font-size: 12px; color: #8b949e; margin-left: 8px; }
 
 .section-header {
   display: flex;
@@ -375,12 +442,7 @@ const teamMembers = [
   margin-bottom: 20px;
 }
 
-.section-title {
-  font-size: 20px;
-  font-weight: 700;
-  color: #e6edf3;
-  margin: 0;
-}
+.section-title { font-size: 20px; font-weight: 700; color: #e6edf3; margin: 0; }
 
 .see-all-btn {
   background: none;
@@ -416,10 +478,7 @@ const teamMembers = [
   margin-bottom: 48px;
 }
 
-.mission-card {
-  padding: 20px 24px;
-  cursor: pointer;
-}
+.mission-card { padding: 20px 24px; cursor: pointer; }
 
 .card-status {
   display: inline-flex;
@@ -458,10 +517,8 @@ const teamMembers = [
   overflow: hidden;
 }
 
-.card-footer {
-  font-size: 12px;
-  color: #484f58;
-}
+.card-footer { font-size: 12px; color: #484f58; }
+.card-time { font-size: 12px; color: #484f58; }
 
 .team-grid {
   display: grid;
@@ -470,10 +527,7 @@ const teamMembers = [
   margin-bottom: 48px;
 }
 
-.team-card {
-  padding: 20px;
-  text-align: center;
-}
+.team-card { padding: 20px; text-align: center; cursor: pointer; }
 
 .team-avatar {
   width: 40px;
@@ -488,60 +542,41 @@ const teamMembers = [
   margin: 0 auto 10px;
 }
 
-.team-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: #e6edf3;
-}
+.team-name { font-size: 14px; font-weight: 600; color: #e6edf3; }
+.team-role { font-size: 12px; color: #8b949e; margin-top: 2px; }
 
-.team-role {
-  font-size: 12px;
-  color: #8b949e;
-  margin-top: 2px;
-}
+/* How it works */
+.how-section { margin-bottom: 48px; }
 
-.capabilities-grid {
+.how-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 16px;
 }
 
-.capability {
-  padding: 24px;
-}
+.how-card { padding: 28px 24px; text-align: center; }
 
-.cap-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
+.how-step {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(170,255,205,0.15), rgba(153,234,249,0.15));
+  border: 1px solid rgba(170,255,205,0.2);
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 14px;
-}
-
-.capability h3 {
+  font-weight: 800;
   font-size: 16px;
-  font-weight: 600;
-  color: #e6edf3;
-  margin: 0 0 6px;
+  color: #aaffcd;
+  margin: 0 auto 16px;
 }
 
-.capability p {
-  font-size: 14px;
-  color: #8b949e;
-  margin: 0;
-  line-height: 1.5;
-}
+.how-card h3 { font-size: 16px; font-weight: 600; color: #e6edf3; margin: 0 0 8px; }
+.how-card p { font-size: 14px; color: #8b949e; margin: 0; line-height: 1.5; }
 
-.recent-section, .team-section, .capabilities-section {
-  margin-bottom: 48px;
-}
+.recent-section, .team-section, .active-section, .how-section { margin-bottom: 48px; }
 
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
-}
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 
 @media (max-width: 768px) {
   .hero-title { font-size: 40px; }
@@ -549,7 +584,7 @@ const teamMembers = [
   .stats-row { grid-template-columns: repeat(2, 1fr); }
   .missions-grid { grid-template-columns: 1fr; }
   .team-grid { grid-template-columns: repeat(2, 1fr); }
-  .capabilities-grid { grid-template-columns: 1fr; }
+  .how-grid { grid-template-columns: 1fr; }
   .hero-actions { flex-direction: column; align-items: center; }
 }
 </style>
