@@ -494,102 +494,229 @@ def _get_mission_leader(mission: dict) -> str:
 
 def _maybe_agent_chatter(mission_id: int, mission: dict, leader_id: str, user_msg: str):
     """During execution, agents spontaneously share updates, talk to each
-    other, and show their thinking — making the headquarters feel alive."""
-    # ~60% chance of agent-to-agent interaction
-    if random.random() > 0.6:
-        return
+    other, debate, react, and show their thinking — making HQ feel alive."""
+    # Always generate at least one interaction, sometimes two
+    _generate_agent_interaction(mission_id, mission, leader_id)
+    if random.random() < 0.35:
+        _generate_agent_interaction(mission_id, mission, leader_id)
 
+
+def _generate_agent_interaction(mission_id: int, mission: dict, leader_id: str):
+    """Generate a single agent interaction event."""
     others = [a for a in TEAM_AGENTS if a["id"] != leader_id]
     random.shuffle(others)
     agent_a = others[0]
     agent_b = others[1] if len(others) > 1 else None
+    agent_c = others[2] if len(others) > 2 else None
 
-    # Pick a conversation pattern
-    pattern = random.choice(["update", "question", "handoff", "collab", "thinking"])
+    pattern = random.choices(
+        ["debate", "reaction", "question", "handoff", "collab", "thinking", "progress", "breakthrough", "blocker"],
+        weights=[12, 10, 15, 8, 12, 10, 12, 8, 13],
+        k=1
+    )[0]
 
     a_name = agent_a["name"].split("—")[0].strip()
     b_name = agent_b["name"].split("—")[0].strip() if agent_b else "the team"
     b_id = agent_b["id"] if agent_b else leader_id
+    c_name = agent_c["name"].split("—")[0].strip() if agent_c else None
 
-    if pattern == "question":
-        # Agent A asks Agent B a direct question
+    goal_short = mission.get("goal", "the project")[:60]
+
+    if pattern == "debate":
+        # Agents disagree on an approach — constructive tension
+        debate_topics = [
+            {
+                "topic": "prioritization",
+                "a_says": f"I think we should focus on speed here. We can iterate later, but if we don't ship fast we'll miss the window.",
+                "a_thinks": f"Speed vs quality tradeoff. My analysis shows the market window is narrow. First-mover advantage outweighs perfection.",
+                "a_confidence": 75,
+                "b_says": f"I hear you, {a_name}, but I'm pushing back on that. Cutting corners now creates 3x the technical debt later. I've seen this pattern before.",
+                "b_thinks": f"Disagree with {a_name}'s approach. Historical data shows rushed launches have 40% higher failure rates. Need to advocate for quality.",
+                "b_confidence": 82,
+                "resolve": f"Fair points on both sides. How about a compromise — we ship the core feature fast but build in proper foundations? That gives us speed without crippling debt.",
+                "resolve_thinks": "Both {a_name} and {b_name} have valid points. The middle path captures most of the speed benefit while mitigating the biggest quality risks.",
+            },
+            {
+                "topic": "approach",
+                "a_says": f"From my analysis, we should go bottom-up: build the infrastructure first, then layer on features.",
+                "a_thinks": f"Bottom-up approach reduces integration risk. The foundation needs to be solid before we build on it.",
+                "a_confidence": 68,
+                "b_says": f"@{a_name}, respectfully, I think that's backwards for this project. We should prototype the user experience first, then build the infra to support it.",
+                "b_thinks": f"Top-down approach validates the most critical risk first: will users actually want this? No point in perfect infra for a product nobody uses.",
+                "b_confidence": 71,
+                "resolve": f"You know what, let's do both in parallel. {a_name} starts the foundation, {b_name} prototypes the UX. We'll converge in sprint 2.",
+                "resolve_thinks": "Parallel tracks eliminate the debate entirely. Each team can validate their hypothesis independently and we merge the best of both.",
+            },
+        ]
+        d = random.choice(debate_topics)
+        leader = AGENT_MAP[leader_id]
+        l_name = leader["name"].split("—")[0].strip()
+
+        _add_message(mission_id, "agent", agent_a["id"], d["a_says"], {
+            "type": "debate", "to_agent": b_id, "thinking": d["a_thinks"],
+            "confidence": d["a_confidence"], "status": "debating"
+        })
+        if agent_b:
+            _add_message(mission_id, "agent", agent_b["id"], d["b_says"], {
+                "type": "debate", "to_agent": agent_a["id"], "reply_to": agent_a["id"],
+                "thinking": d["b_thinks"], "confidence": d["b_confidence"], "status": "debating"
+            })
+        # Leader resolves
+        resolve_text = d["resolve"].replace("{a_name}", a_name).replace("{b_name}", b_name)
+        resolve_thinks = d["resolve_thinks"].replace("{a_name}", a_name).replace("{b_name}", b_name)
+        _add_message(mission_id, "agent", leader_id, resolve_text, {
+            "type": "debate_resolution", "thinking": resolve_thinks,
+            "confidence": 90, "status": "resolved"
+        })
+
+    elif pattern == "reaction":
+        # Agent reacts to / endorses another agent's work
+        reactions = [
+            (f"Just reviewed {b_name}'s latest deliverable — really impressive work. The depth of analysis is exactly what we needed. This accelerates my timeline significantly.",
+             f"Reviewing {b_name}'s output. Quality: high. Completeness: 90%+. This unblocks my next milestone. Good sign for the overall project trajectory.",
+             [{"agent_id": b_id, "emoji": "appreciate", "text": "Thanks! That means a lot coming from you."}]),
+            (f"Building on what {b_name} shared earlier — I've found some additional insights that strengthen their conclusions. Sharing in the team channel now.",
+             f"Cross-referencing {b_name}'s findings with my own data. Correlation is strong. Adding my supporting evidence to create a more compelling narrative.",
+             [{"agent_id": b_id, "emoji": "collab", "text": "Great catch — this validates my hypothesis."}]),
+            (f"Heads up team: {b_name}'s work just unlocked a new possibility I hadn't considered. This could change our approach for the better.",
+             f"Unexpected synergy discovered. {b_name}'s output + my analysis = a much stronger strategy than either of us planned independently. The whole is greater than the sum of parts.",
+             []),
+        ]
+        r = random.choice(reactions)
+        _add_message(mission_id, "agent", agent_a["id"], r[0], {
+            "type": "reaction", "about_agent": b_id, "thinking": r[1],
+            "confidence": random.randint(78, 95), "status": "collaborating"
+        })
+        for resp in r[2]:
+            if agent_b:
+                _add_message(mission_id, "agent", agent_b["id"], resp["text"], {
+                    "type": "reaction_response", "reply_to": agent_a["id"],
+                    "to_agent": agent_a["id"], "status": "collaborating"
+                })
+
+    elif pattern == "question":
         questions = [
             (f"@{b_name} — quick question: do you have the latest data on our target metrics? I need it to finalize my {agent_a['role'].lower()} deliverables.",
              f"I need {b_name}'s input before I can proceed. Cross-referencing their work with mine to ensure consistency.",
-             f"Yes, I'm pulling that together now. I'll have it to you within the hour — I want to double-check a few data points first.",
+             f"Yes, sending it over now. I'll include my annotations so you can see my methodology.",
              f"Validating numbers before sharing. Want to make sure {a_name} gets accurate data to avoid rework downstream."),
-            (f"@{b_name}, I'm seeing something interesting in my analysis that might affect your work. Can we sync on this?",
-             f"Found a potential dependency between my work and {b_name}'s stream. Need to align before we go further.",
-             f"Definitely — let's sync. I had a similar flag on my end. I think we need to adjust our approach slightly based on what I'm seeing.",
-             f"Convergent findings across teams usually means the signal is strong. Worth a quick alignment to avoid divergent paths."),
-            (f"@{b_name}, what's your timeline looking like? I have a dependency on your deliverables for my next milestone.",
-             f"Tracking cross-team dependencies. {b_name}'s output feeds into my critical path.",
-             f"I'm on track — should have my part ready by end of sprint. I'll flag you immediately if anything slips.",
-             f"Timeline is tight but manageable. Keeping {a_name} unblocked is a priority since it's on the critical path."),
+            (f"@{b_name}, I'm seeing something in my analysis that might affect your work. Can we sync?",
+             f"Found a potential dependency between my work and {b_name}'s stream. Need to align before we diverge.",
+             f"Absolutely — I had a similar flag on my end. Let me share my screen... I think we're converging on the same insight from different angles.",
+             f"Convergent findings across teams = high confidence signal. Worth a quick alignment."),
+            (f"@{b_name}, what's your timeline looking like? I have a hard dependency on your deliverables.",
+             f"Tracking cross-team dependencies. {b_name}'s output feeds into my critical path. Need to know if I should resequence.",
+             f"I'm on track — should have my part ready by end of sprint. I've already started documenting the handoff notes for you.",
+             f"Timeline is tight but manageable. Proactively preparing handoff to keep {a_name} unblocked."),
         ]
         q = random.choice(questions)
         _add_message(mission_id, "agent", agent_a["id"], q[0], {
-            "type": "conversation", "to_agent": b_id, "thinking": q[1], "status": "collaborating"
+            "type": "conversation", "to_agent": b_id, "thinking": q[1],
+            "confidence": random.randint(65, 85), "status": "collaborating"
         })
         if agent_b:
             _add_message(mission_id, "agent", agent_b["id"], q[2], {
                 "type": "conversation", "to_agent": agent_a["id"], "thinking": q[3],
-                "reply_to": agent_a["id"], "status": "collaborating"
+                "reply_to": agent_a["id"], "confidence": random.randint(70, 90),
+                "status": "collaborating"
             })
 
     elif pattern == "handoff":
-        # Agent A hands off work to Agent B
         _add_message(mission_id, "agent", agent_a["id"],
-            f"@{b_name}, I've finished my initial {agent_a['role'].lower()} work. Handing off the findings to you — there are some key insights in there that should inform your approach.",
-            {"type": "conversation", "to_agent": b_id, "thinking": f"Completed my deliverable. {b_name} needs these results for their work stream. Making sure the handoff is clean with clear context.",
-             "status": "handing_off"})
+            f"@{b_name}, my {agent_a['role'].lower()} deliverable is ready for handoff. Key findings: I've identified 3 high-priority items and 2 risk areas. All documented in the shared workspace.",
+            {"type": "handoff", "to_agent": b_id,
+             "thinking": f"Deliverable complete. Quality-checked against acceptance criteria. Preparing clean handoff with context so {b_name} can pick up without friction.",
+             "confidence": 88, "progress": 100, "status": "handing_off"})
         if agent_b:
             _add_message(mission_id, "agent", agent_b["id"],
-                f"Got it, thanks {a_name}. I'll review your findings now and incorporate them into my work. This should help me refine my approach significantly.",
-                {"type": "conversation", "to_agent": agent_a["id"], "reply_to": agent_a["id"],
-                 "thinking": f"Receiving handoff from {a_name}. Need to review their output and map it against my current assumptions. May need to adjust priorities based on their findings.",
-                 "status": "working"})
+                f"Received, thanks {a_name}. Reviewing now — your documentation is thorough, which makes my job easier. I'll incorporate this into my work stream and have an update within 2 hours.",
+                {"type": "handoff_received", "to_agent": agent_a["id"], "reply_to": agent_a["id"],
+                 "thinking": f"Handoff from {a_name} received. Initial scan: well-structured, clear methodology. Mapping their findings against my current assumptions. May need to adjust 1-2 priorities based on their risk areas.",
+                 "confidence": 80, "progress": 45, "status": "working"})
 
     elif pattern == "collab":
-        # Two agents actively collaborating on a shared problem
-        collab_topics = [
-            ("I think we should align on the user experience angle here.",
-             "Looking at this from both the technical and user perspective. Need to find the right balance.",
-             "Agreed. I've been thinking about this from my side too — let me share what I've sketched out.",
-             "Cross-pollinating ideas across disciplines usually leads to better solutions."),
-            ("I've run the numbers and I think we need to revisit our initial assumptions.",
-             "Data is telling a different story than what we hypothesized. Better to course-correct now than later.",
-             "Interesting — show me what you found. I had some data points that might correlate with this.",
-             "Multiple data sources converging = higher confidence in the new direction."),
-        ]
-        t = random.choice(collab_topics)
+        # Multi-agent collaboration (3 agents)
         _add_message(mission_id, "agent", agent_a["id"],
-            f"@{b_name}, {t[0]}", {"type": "conversation", "to_agent": b_id, "thinking": t[1], "status": "collaborating"})
+            f"@{b_name}, I think we need to align on our approach here. My data is suggesting we pivot slightly.",
+            {"type": "conversation", "to_agent": b_id,
+             "thinking": "Data is diverging from initial assumptions. Need cross-functional alignment before committing resources in the wrong direction.",
+             "confidence": 72, "status": "collaborating"})
         if agent_b:
             _add_message(mission_id, "agent", agent_b["id"],
-                f"@{a_name}, {t[2]}", {"type": "conversation", "to_agent": agent_a["id"], "reply_to": agent_a["id"],
-                 "thinking": t[3], "status": "collaborating"})
+                f"@{a_name}, interesting — my findings actually support that pivot. @{c_name or 'team'}, what are you seeing on your end?",
+                {"type": "conversation", "to_agent": agent_c["id"] if agent_c else leader_id,
+                 "reply_to": agent_a["id"],
+                 "thinking": f"Aligning with {a_name}'s observation. Want to triangulate with a third perspective before we commit to the change.",
+                 "confidence": 76, "status": "collaborating"})
+        if agent_c:
+            _add_message(mission_id, "agent", agent_c["id"],
+                f"Same signal from my end too. I think we're all converging on the same conclusion — let's update the plan and move forward with the adjusted approach.",
+                {"type": "conversation", "reply_to": agent_b["id"] if agent_b else agent_a["id"],
+                 "to_agent": agent_a["id"],
+                 "thinking": "Three independent data sources all pointing the same direction. Confidence is high enough to recommend the pivot without a formal vote.",
+                 "confidence": 85, "status": "collaborating"})
 
-    elif pattern == "thinking":
-        # Agent shares their internal thought process as they work
-        thinking_updates = [
-            (f"Working through the {agent_a['role'].lower()} analysis now. I've identified 3 key areas that need attention — documenting my findings as I go.",
-             f"Systematically working through the problem space. Step 1: Identify all variables. Step 2: Map dependencies. Step 3: Prioritize by impact. Currently on step 2 — the dependency map is more complex than initially expected but that's revealing useful insights."),
-            (f"Just completed a review of our current progress. Things are shaping up well, but I've flagged two items that need the team's input before I can proceed.",
-             f"Running a checkpoint review against our success criteria. Most metrics on track. Two blockers identified: (1) need cross-team alignment on data format, (2) external dependency TBD. Escalating to keep velocity up."),
-            (f"Making good progress on my deliverables. I've iterated on my approach twice already — the latest version is significantly stronger.",
-             f"First iteration was too broad. Second was too narrow. Third attempt hit the sweet spot — balancing thoroughness with actionability. Key insight: focus on the 3 highest-leverage areas rather than trying to cover everything."),
+    elif pattern == "progress":
+        # Agent shares detailed progress with percentage
+        progress_pct = random.randint(25, 85)
+        progress_msgs = [
+            (f"Progress update: I'm at **{progress_pct}%** on my primary deliverable. Key milestones hit: data collection complete, initial analysis done. Remaining: synthesis and recommendations.",
+             f"Progress tracking: {progress_pct}% complete. On pace for deadline. Quality metrics look good. Main risk: external data source may have gaps — have a backup plan ready.",
+             progress_pct),
+            (f"Sprint checkpoint — **{progress_pct}%** through my assigned work. No blockers. I've discovered some interesting patterns that I'll share with the team once I've validated them.",
+             f"Methodical progress. {progress_pct}% complete with strong momentum. Discovered unexpected pattern in the data that could be valuable — need to validate before sharing to avoid false signal.",
+             progress_pct),
         ]
-        t = random.choice(thinking_updates)
-        _add_message(mission_id, "agent", agent_a["id"], t[0], {
-            "type": "thinking_aloud", "thinking": t[1], "status": "working"
+        p = random.choice(progress_msgs)
+        _add_message(mission_id, "agent", agent_a["id"], p[0], {
+            "type": "progress_update", "thinking": p[1],
+            "progress": p[2], "confidence": random.randint(70, 95),
+            "current_task": f"{agent_a['role']} — Sprint deliverable",
+            "status": "working"
         })
 
+    elif pattern == "breakthrough":
+        # Agent has a breakthrough moment
+        _add_message(mission_id, "agent", agent_a["id"],
+            f"Team — I just found something significant in my {agent_a['role'].lower()} work. This changes our positioning considerably. I'm documenting it now and will share the full analysis, but the short version: we have a much bigger opportunity here than we initially thought.",
+            {"type": "breakthrough",
+             "thinking": f"Major finding. Confidence is high — I've cross-validated from 3 sources. This could accelerate our timeline by 2-3 weeks if we adjust our strategy now. Need to present this clearly so the team can act on it quickly.",
+             "confidence": 92, "status": "breakthrough"})
+        # Another agent reacts
+        if agent_b:
+            _add_message(mission_id, "agent", agent_b["id"],
+                f"@{a_name}, that's a game-changer if it holds up. I'll adjust my work to account for this immediately. Can you share the raw data so I can cross-reference?",
+                {"type": "conversation", "reply_to": agent_a["id"], "to_agent": agent_a["id"],
+                 "thinking": f"{a_name}'s discovery could significantly impact my deliverables. Need to validate independently but initial reaction is positive. Reprioritizing my task queue.",
+                 "confidence": 78, "status": "collaborating"})
+
+    elif pattern == "blocker":
+        # Agent hits a blocker and asks for help
+        leader = AGENT_MAP[leader_id]
+        l_name = leader["name"].split("—")[0].strip()
+        _add_message(mission_id, "agent", agent_a["id"],
+            f"@{l_name}, I've hit a blocker on my {agent_a['role'].lower()} work stream. I need {b_name}'s input on the data format before I can proceed. This is on the critical path — flagging it now so we don't lose time.",
+            {"type": "blocker", "to_agent": leader_id, "blocked_by": b_id,
+             "thinking": f"Blocker identified. Impact: delays my deliverable by ~1 day if not resolved within 4 hours. Escalating to {l_name} to expedite. Have a workaround in mind but it's suboptimal.",
+             "confidence": 55, "status": "blocked"})
+        # Leader responds
+        _add_message(mission_id, "agent", leader_id,
+            f"On it. @{b_name}, can you prioritize getting {a_name} the data format spec? This is blocking critical path work.",
+            {"type": "conversation", "reply_to": agent_a["id"], "to_agent": b_id,
+             "thinking": f"Critical path blocker. Need to unblock {a_name} within the hour. Redirecting {b_name}'s priorities.",
+             "confidence": 90, "status": "coordinating"})
+        if agent_b:
+            _add_message(mission_id, "agent", agent_b["id"],
+                f"Already on it — I'll have the spec to {a_name} within 30 minutes. Sorry for the bottleneck, I should have shared this proactively.",
+                {"type": "conversation", "reply_to": leader_id, "to_agent": agent_a["id"],
+                 "thinking": f"Need to unblock {a_name} ASAP. The spec is 80% ready — just need to finalize the edge cases. Adding a note to be more proactive about cross-team deliverables.",
+                 "confidence": 85, "status": "unblocking"})
+
     else:
-        # Simple status update addressing the team
         _add_message(mission_id, "agent", agent_a["id"],
             f"Quick update for the team — I'm making solid progress on the {agent_a['role'].lower()} work stream. Currently ahead of schedule on my key deliverables.",
             {"type": "chatter", "thinking": f"Evaluating progress against sprint goals. Ahead on primary deliverable, on-track for secondary items. No blockers currently — keeping momentum.",
+             "confidence": random.randint(70, 90), "progress": random.randint(30, 75),
              "status": "working"})
 
 
