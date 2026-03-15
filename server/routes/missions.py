@@ -80,3 +80,10 @@ async def approve_plan(mission_id: int, request: Request):
         return result
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/{mission_id}/votes")
+async def get_votes(mission_id: int, request: Request):
+    _get_user_id(request)
+    votes = mission_service.get_votes(mission_id)
+    return {"votes": votes}

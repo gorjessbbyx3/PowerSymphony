@@ -1,11 +1,233 @@
 import json
 import logging
 import os
+import random
 from datetime import datetime, timezone
 
 from server.services.db import get_cursor
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Leader election — agents choose the best leader for each mission
+# ---------------------------------------------------------------------------
+
+LEADER_AFFINITIES = {
+    "team_leader": ["general", "coordination", "multi-domain"],
+    "market_researcher": ["market", "research", "competitor", "analysis", "survey", "audience", "consumer"],
+    "product_strategist": ["product", "roadmap", "feature", "user experience", "ux", "design", "saas", "app"],
+    "core_engineer": ["build", "code", "software", "api", "backend", "frontend", "architecture", "engineer", "develop", "technical"],
+    "integration_engineer": ["deploy", "devops", "infrastructure", "cloud", "ci/cd", "integration", "aws", "docker"],
+    "tester_compliance": ["security", "compliance", "gdpr", "testing", "audit", "quality", "privacy"],
+    "sales_marketing": ["marketing", "growth", "social media", "content", "seo", "brand", "newsletter", "followers", "community"],
+    "fundraising_ops": ["revenue", "fundraising", "financial", "budget", "pricing", "monetiz", "business model", "profit"],
+}
+
+
+def _elect_leader(goal: str) -> str:
+    """Elect a project leader based on how well each agent's expertise
+    matches the mission goal. Returns the agent_id of the elected leader."""
+    goal_lower = goal.lower()
+    scores = {}
+    for agent_id, keywords in LEADER_AFFINITIES.items():
+        score = sum(2 if kw in goal_lower else 0 for kw in keywords)
+        # Small random factor so it's not always the same agent for similar goals
+        scores[agent_id] = score + random.random() * 0.5
+
+    # team_leader gets a small baseline bonus (generalist)
+    scores["team_leader"] = scores.get("team_leader", 0) + 1.0
+
+    elected = max(scores, key=scores.get)
+    return elected
+
+
+def _generate_election_discussion(goal: str, elected_id: str) -> list:
+    """Generate the agent discussion about who should lead this mission."""
+    elected = AGENT_MAP[elected_id]
+    messages = []
+
+    # Alex kicks off
+    if elected_id == "team_leader":
+        messages.append({
+            "agent_id": "team_leader",
+            "content": f"I'll take the lead on this one. The goal spans multiple domains, so you need someone who can coordinate across all departments. I'm proposing myself as project lead.",
+            "metadata": {"type": "election", "phase": "nomination", "nominee": "team_leader"}
+        })
+    else:
+        messages.append({
+            "agent_id": "team_leader",
+            "content": f"Looking at this mission, I think **{elected['name'].split('—')[0].strip()}** should lead this project. Their expertise in {elected['role']} is the best fit for what we're trying to accomplish. What does the team think?",
+            "metadata": {"type": "election", "phase": "nomination", "nominee": elected_id}
+        })
+
+    # 2-3 agents weigh in
+    supporters = [a for a in TEAM_AGENTS if a["id"] != "team_leader" and a["id"] != elected_id]
+    random.shuffle(supporters)
+
+    support_1 = supporters[0]
+    messages.append({
+        "agent_id": support_1["id"],
+        "content": f"I agree. {elected['name'].split('—')[0].strip()}'s background makes them the right person to drive this. I'm ready to support however they need.",
+        "metadata": {"type": "election", "phase": "discussion"}
+    })
+
+    if len(supporters) > 1:
+        support_2 = supporters[1]
+        messages.append({
+            "agent_id": support_2["id"],
+            "content": f"Makes sense to me. I'll coordinate with {elected['name'].split('—')[0].strip()} on my deliverables. Let's get started.",
+            "metadata": {"type": "election", "phase": "discussion"}
+        })
+
+    # Elected leader accepts
+    if elected_id != "team_leader":
+        messages.append({
+            "agent_id": elected_id,
+            "content": f"Thanks for the confidence. I'll take the lead on this mission. Let me start by breaking down the goal and figuring out what we each need to tackle. I'll have assignments ready shortly.",
+            "metadata": {"type": "election", "phase": "accepted", "role": "project_lead"}
+        })
+
+    return messages
+
+
+# ---------------------------------------------------------------------------
+# Voting system — agents vote on major decisions
+# ---------------------------------------------------------------------------
+
+def create_vote(mission_id: int, topic: str, options: list, vote_type: str = "decision") -> dict:
+    """Create a new vote for the team to decide on."""
+    with get_cursor() as cur:
+        cur.execute(
+            """INSERT INTO mission_votes (mission_id, topic, vote_type, options, status)
+               VALUES (%s, %s, %s, %s, 'open')
+               RETURNING id, mission_id, topic, vote_type, options, votes, result, status, created_at""",
+            (mission_id, topic, vote_type, json.dumps(options)),
+        )
+        vote = dict(cur.fetchone())
+    return _serialize_vote(vote)
+
+
+def cast_votes(vote_id: int, mission_id: int) -> dict:
+    """Have all agents cast their votes on an open vote. Returns the resolved vote."""
+    with get_cursor() as cur:
+        cur.execute("SELECT * FROM mission_votes WHERE id = %s AND mission_id = %s", (vote_id, mission_id))
+        vote = cur.fetchone()
+    if not vote:
+        raise ValueError("Vote not found")
+    vote = dict(vote)
+    if vote["status"] != "open":
+        return _serialize_vote(vote)
+
+    options = vote["options"] if isinstance(vote["options"], list) else json.loads(vote["options"])
+
+    # Each agent votes based on their expertise
+    agent_votes = {}
+    for agent in TEAM_AGENTS:
+        # Agents vote with slight randomness but weighted by their domain
+        choice = _agent_pick(agent["id"], vote["topic"], options)
+        agent_votes[agent["id"]] = choice
+
+    # Tally
+    tally = {}
+    for choice in agent_votes.values():
+        tally[choice] = tally.get(choice, 0) + 1
+    winner = max(tally, key=tally.get)
+    winner_count = tally[winner]
+
+    result = {"winner": winner, "tally": tally, "total_votes": len(agent_votes)}
+
+    with get_cursor() as cur:
+        cur.execute(
+            """UPDATE mission_votes SET votes = %s, result = %s, status = 'resolved', resolved_at = NOW()
+               WHERE id = %s""",
+            (json.dumps(agent_votes), json.dumps(result), vote_id),
+        )
+
+    vote["votes"] = agent_votes
+    vote["result"] = result
+    vote["status"] = "resolved"
+    return _serialize_vote(vote)
+
+
+def get_votes(mission_id: int) -> list:
+    """Get all votes for a mission."""
+    with get_cursor() as cur:
+        cur.execute(
+            "SELECT * FROM mission_votes WHERE mission_id = %s ORDER BY created_at",
+            (mission_id,),
+        )
+        return [_serialize_vote(dict(v)) for v in cur.fetchall()]
+
+
+def _agent_pick(agent_id: str, topic: str, options: list) -> str:
+    """Simulate an agent choosing from options based on their expertise."""
+    topic_lower = topic.lower()
+    affinities = LEADER_AFFINITIES.get(agent_id, [])
+    # If the agent has domain expertise relevant to the topic, they're more
+    # opinionated (lean toward first option). Otherwise, slightly random.
+    has_expertise = any(kw in topic_lower for kw in affinities)
+    if has_expertise:
+        # Expert agents lean toward the first option (usually the "better" one)
+        weights = [3] + [1] * (len(options) - 1)
+    else:
+        weights = [1] * len(options)
+    return random.choices(options, weights=weights, k=1)[0]
+
+
+def _serialize_vote(vote: dict) -> dict:
+    result = {**vote}
+    for key in ["created_at", "resolved_at"]:
+        if key in result and result[key]:
+            result[key] = result[key].isoformat() if hasattr(result[key], "isoformat") else str(result[key])
+    for key in ["options", "votes", "result"]:
+        if key in result and isinstance(result[key], str):
+            try:
+                result[key] = json.loads(result[key])
+            except (json.JSONDecodeError, TypeError):
+                pass
+    return result
+
+
+def _generate_vote_discussion(mission_id: int, topic: str, options: list, elected_leader: str) -> list:
+    """Generate a vote and the surrounding agent discussion."""
+    vote = create_vote(mission_id, topic, options)
+    resolved = cast_votes(vote["id"], mission_id)
+
+    winner = resolved["result"]["winner"]
+    tally = resolved["result"]["tally"]
+    agent_votes = resolved["votes"]
+
+    msgs = []
+
+    # Leader proposes the vote
+    leader = AGENT_MAP[elected_leader]
+    msgs.append({
+        "agent_id": elected_leader,
+        "content": f"**Team Vote:** {topic}\n\nOptions: {', '.join(options)}\n\nEveryone cast your vote.",
+        "metadata": {"type": "vote", "phase": "proposed", "vote_id": resolved["id"]}
+    })
+
+    # Show 2-3 agents explaining their vote
+    voters = [(aid, choice) for aid, choice in agent_votes.items() if aid != elected_leader]
+    random.shuffle(voters)
+    for aid, choice in voters[:3]:
+        agent = AGENT_MAP[aid]
+        msgs.append({
+            "agent_id": aid,
+            "content": f"I'm voting for **{choice}**. From a {agent['role'].lower()} perspective, it makes the most sense for our objectives.",
+            "metadata": {"type": "vote", "phase": "cast", "vote_id": resolved["id"], "choice": choice}
+        })
+
+    # Leader announces result
+    tally_str = ", ".join(f"{opt}: {cnt}" for opt, cnt in sorted(tally.items(), key=lambda x: -x[1]))
+    msgs.append({
+        "agent_id": elected_leader,
+        "content": f"**Vote Result:** The team has decided on **{winner}**.\n\nFinal tally — {tally_str}. Let's move forward with this.",
+        "metadata": {"type": "vote", "phase": "result", "vote_id": resolved["id"], "winner": winner}
+    })
+
+    return msgs
 
 TEAM_AGENTS = [
     {
@@ -138,18 +360,34 @@ AGENT_MAP = {a["id"]: a for a in TEAM_AGENTS}
 
 
 def create_mission(user_id: int, goal: str) -> dict:
+    # Elect a project leader based on the mission goal
+    elected_leader = _elect_leader(goal)
+
+    context = {"elected_leader": elected_leader}
     with get_cursor() as cur:
         cur.execute(
             """INSERT INTO missions (user_id, goal, status, context)
-               VALUES (%s, %s, 'gathering_info', '{}')
+               VALUES (%s, %s, 'gathering_info', %s)
                RETURNING id, user_id, goal, status, plan, context, created_at, updated_at""",
-            (user_id, goal),
+            (user_id, goal, json.dumps(context)),
         )
         mission = dict(cur.fetchone())
 
-    _add_message(mission["id"], "user", None, goal)
-    leader_response = _generate_leader_response(mission, goal, [])
-    _add_message(mission["id"], "agent", "team_leader", leader_response)
+    mid = mission["id"]
+    _add_message(mid, "user", None, goal)
+
+    # Leader election discussion
+    _add_message(mid, "system", None, "The team is reviewing the mission and selecting a project lead...")
+    election_msgs = _generate_election_discussion(goal, elected_leader)
+    for msg in election_msgs:
+        _add_message(mid, "agent", msg["agent_id"], msg["content"], msg.get("metadata"))
+
+    elected_name = AGENT_MAP[elected_leader]["name"].split("—")[0].strip()
+    _add_message(mid, "system", None, f"{elected_name} has been elected as project lead for this mission.")
+
+    # Elected leader asks clarifying questions
+    leader_response = _generate_leader_response(mission, goal, [], leader_id=elected_leader)
+    _add_message(mid, "agent", elected_leader, leader_response)
 
     return _serialize_mission(mission)
 
@@ -216,26 +454,59 @@ def send_message(mission_id: int, user_id: int, content: str) -> dict:
     _add_message(mission_id, "user", None, content)
 
     history = get_messages(mission_id, user_id)
+    leader_id = _get_mission_leader(mission)
 
     if mission["status"] == "gathering_info":
         if _is_approval(content):
             _transition_to_planning(mission, history)
         else:
-            response = _generate_leader_response(mission, mission["goal"], history)
-            _add_message(mission_id, "agent", "team_leader", response)
+            response = _generate_leader_response(mission, mission["goal"], history, leader_id=leader_id)
+            _add_message(mission_id, "agent", leader_id, response)
 
     elif mission["status"] == "awaiting_approval":
         if _is_approval(content):
             _transition_to_executing(mission)
         else:
-            response = _generate_leader_response(mission, mission["goal"], history)
-            _add_message(mission_id, "agent", "team_leader", response)
+            response = _generate_leader_response(mission, mission["goal"], history, leader_id=leader_id)
+            _add_message(mission_id, "agent", leader_id, response)
 
     elif mission["status"] == "executing":
-        response = _generate_leader_response(mission, mission["goal"], history)
-        _add_message(mission_id, "agent", "team_leader", response)
+        response = _generate_leader_response(mission, mission["goal"], history, leader_id=leader_id)
+        _add_message(mission_id, "agent", leader_id, response)
+        # Other agents may chime in with updates
+        _maybe_agent_chatter(mission_id, mission, leader_id, content)
 
     return {"ok": True}
+
+
+def _get_mission_leader(mission: dict) -> str:
+    """Get the elected leader for a mission, falling back to team_leader."""
+    ctx = mission.get("context")
+    if isinstance(ctx, str):
+        try:
+            ctx = json.loads(ctx)
+        except (json.JSONDecodeError, TypeError):
+            ctx = {}
+    if isinstance(ctx, dict):
+        return ctx.get("elected_leader", "team_leader")
+    return "team_leader"
+
+
+def _maybe_agent_chatter(mission_id: int, mission: dict, leader_id: str, user_msg: str):
+    """During execution, other agents may spontaneously share updates or
+    collaborate with each other — making the headquarters feel alive."""
+    # ~40% chance another agent shares an update
+    if random.random() > 0.4:
+        return
+    others = [a for a in TEAM_AGENTS if a["id"] != leader_id]
+    agent = random.choice(others)
+    chatter_options = [
+        f"Quick update from my end — I'm making progress on the {agent['role'].lower()} work stream. Will share detailed findings with the team shortly.",
+        f"I've been coordinating with the rest of the team on dependencies. Everything is on track from the {agent['role'].lower()} side.",
+        f"Just finished a checkpoint review. I'll flag anything that needs the team's attention in our next sync.",
+    ]
+    content = random.choice(chatter_options)
+    _add_message(mission_id, "agent", agent["id"], content, {"type": "chatter", "status": "working"})
 
 
 def approve_plan(mission_id: int, user_id: int) -> dict:
@@ -259,14 +530,28 @@ def approve_plan(mission_id: int, user_id: int) -> dict:
 
 def _transition_to_planning(mission: dict, history: list):
     mission_id = mission["id"]
+    leader_id = _get_mission_leader(mission)
 
-    _add_message(mission_id, "system", None, "The team is now analyzing your goal and creating a plan...")
+    _add_message(mission_id, "system", None, "The team is now analyzing the goal and creating a plan...")
 
     _update_status(mission_id, "planning")
 
+    # Team discussion — each agent contributes from their perspective
     team_discussion = _generate_team_discussion(mission, history)
     for msg in team_discussion:
         _add_message(mission_id, "agent", msg["agent_id"], msg["content"], msg.get("metadata"))
+
+    # Hold a team vote on approach/strategy
+    approach_options = _generate_approach_options(mission)
+    if approach_options:
+        vote_msgs = _generate_vote_discussion(
+            mission_id,
+            "What approach should we prioritize for this mission?",
+            approach_options,
+            leader_id,
+        )
+        for msg in vote_msgs:
+            _add_message(mission_id, "agent", msg["agent_id"], msg["content"], msg.get("metadata"))
 
     plan = _generate_plan(mission, history)
 
@@ -277,24 +562,40 @@ def _transition_to_planning(mission: dict, history: list):
         )
 
     plan_summary = _format_plan_for_chat(plan)
-    _add_message(mission_id, "agent", "team_leader", plan_summary)
+    _add_message(mission_id, "agent", leader_id, plan_summary)
+
+
+def _generate_approach_options(mission: dict) -> list:
+    """Generate vote options for the team's strategic approach."""
+    goal_lower = mission.get("goal", "").lower()
+    if any(w in goal_lower for w in ["app", "software", "build", "platform", "tool", "api"]):
+        return ["Move fast — ship MVP in 3 weeks", "Build solid — 6 week MVP with full testing", "Research first — 2 weeks discovery then build"]
+    elif any(w in goal_lower for w in ["marketing", "growth", "social", "content", "brand"]):
+        return ["Broad awareness campaign", "Targeted niche strategy", "Community-driven organic growth"]
+    elif any(w in goal_lower for w in ["research", "analysis", "study", "report"]):
+        return ["Deep quantitative analysis", "Mixed methods (qual + quant)", "Rapid competitive scan"]
+    else:
+        return ["Speed-focused: ship fast and iterate", "Quality-focused: thorough then launch", "Balanced: structured sprints"]
 
 
 def _transition_to_executing(mission: dict):
     mission_id = mission["id"]
+    leader_id = _get_mission_leader(mission)
+    leader_name = AGENT_MAP[leader_id]["name"].split("—")[0].strip()
     _update_status(mission_id, "executing")
-    _add_message(mission_id, "system", None, "Plan approved! The team is now executing the mission.")
+    _add_message(mission_id, "system", None, f"Plan approved! {leader_name} is briefing the team and kicking off execution.")
 
     execution_msgs = _generate_execution_kickoff(mission)
     for msg in execution_msgs:
         _add_message(mission_id, "agent", msg["agent_id"], msg["content"], msg.get("metadata"))
 
     _add_message(
-        mission_id, "agent", "team_leader",
+        mission_id, "agent", leader_id,
         "All team members have been briefed and are now working on their assigned tasks. "
-        "I'll coordinate their efforts and keep you updated on progress. "
-        "You can check in anytime by sending a message.",
-        {"reasoning": "Confirming all agents are aligned and work streams are active. Monitoring dependencies between teams."}
+        "I'm coordinating efforts and monitoring dependencies between teams. "
+        "The team will share progress as they go — check the headquarters to see everything in real-time. "
+        "You can check in anytime or just let us handle it.",
+        {"reasoning": "Confirming all agents are aligned and work streams are active. Monitoring dependencies between teams.", "type": "kickoff"}
     )
 
 
@@ -405,15 +706,18 @@ def _try_llm_call(system_prompt: str, user_prompt: str) -> str | None:
         return None
 
 
-def _generate_leader_response(mission: dict, goal: str, history: list) -> str:
+def _generate_leader_response(mission: dict, goal: str, history: list, leader_id: str = "team_leader") -> str:
     conversation_text = "\n".join(
         f"{'User' if m.get('role') == 'user' else m.get('agent_name', 'System')}: {m.get('content', '')}"
         for m in history[-10:]
     )
 
-    system_prompt = f"""You are Alex, the Team Leader of an elite AI team. Your team includes:
-- Maya (Market Research), Jordan (Product Strategy), Sam (Lead Engineer), Riley (Integration/DevOps),
-  Casey (QA/Compliance), Taylor (Growth/Marketing), Morgan (Operations/Finance).
+    leader = AGENT_MAP.get(leader_id, AGENT_MAP["team_leader"])
+    leader_first_name = leader["name"].split("—")[0].strip()
+    system_prompt = f"""You are {leader_first_name}, the elected project lead for this mission. Your role: {leader['role']}.
+Your team includes: Alex (Team Leader), Maya (Market Research), Jordan (Product Strategy),
+Sam (Lead Engineer), Riley (Integration/DevOps), Casey (QA/Compliance), Taylor (Growth/Marketing),
+Morgan (Operations/Finance).
 
 The user has given the goal: "{goal}"
 Current mission status: {mission.get('status', 'gathering_info')}

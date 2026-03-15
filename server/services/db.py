@@ -70,4 +70,18 @@ def init_schema():
             );
             CREATE INDEX IF NOT EXISTS idx_missions_user_id ON missions(user_id);
             CREATE INDEX IF NOT EXISTS idx_mission_messages_mission_id ON mission_messages(mission_id);
+
+            CREATE TABLE IF NOT EXISTS mission_votes (
+                id SERIAL PRIMARY KEY,
+                mission_id INTEGER NOT NULL REFERENCES missions(id) ON DELETE CASCADE,
+                topic TEXT NOT NULL,
+                vote_type VARCHAR(30) NOT NULL DEFAULT 'decision',
+                options JSONB NOT NULL DEFAULT '[]',
+                votes JSONB NOT NULL DEFAULT '{}',
+                result JSONB,
+                status VARCHAR(20) NOT NULL DEFAULT 'open',
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                resolved_at TIMESTAMP WITH TIME ZONE
+            );
+            CREATE INDEX IF NOT EXISTS idx_mission_votes_mission_id ON mission_votes(mission_id);
         """)

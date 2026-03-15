@@ -107,10 +107,17 @@ async def create_mission(goal: str) -> str:
     if "error" in data:
         return f"Error: {data['error']}"
     mid = data.get("id")
+    # Check who was elected leader
+    ctx = data.get("context", {})
+    if isinstance(ctx, str):
+        import json as _json
+        ctx = _json.loads(ctx) if ctx else {}
+    leader = ctx.get("elected_leader", "team_leader")
     return (
-        f"Mission #{mid} created! The team is now gathering information.\n"
-        f"Goal: {goal}\n\n"
-        f"Use `get_mission_messages({mid})` to see the team's response, "
+        f"Mission #{mid} created! The team has elected a project lead and is gathering information.\n"
+        f"Goal: {goal}\n"
+        f"Project Lead: {leader}\n\n"
+        f"Use `get_mission_messages({mid})` to see the team's discussion (including leader election), "
         f"then `send_mission_message({mid}, ...)` to answer their questions."
     )
 
@@ -203,6 +210,34 @@ async def approve_mission_plan(mission_id: int) -> str:
     if "error" in data:
         return f"Error: {data['error']}"
     return f"Plan approved! The team is now executing. Status: {data.get('status', 'executing')}"
+
+
+@mcp.tool
+async def get_mission_votes(mission_id: int) -> str:
+    """Get all votes/decisions the team has made on a mission. Shows
+    what the agents voted on and how they decided.
+
+    Args:
+        mission_id: The mission ID number.
+    """
+    data = await _api("GET", f"/api/missions/{mission_id}/votes")
+    if "error" in data:
+        return f"Error: {data['error']}"
+    votes = data.get("votes", [])
+    if not votes:
+        return "No votes yet."
+    lines = []
+    for v in votes:
+        lines.append(f"**Vote:** {v.get('topic', 'N/A')}")
+        result = v.get("result")
+        if result:
+            lines.append(f"  Decision: **{result.get('winner', '?')}**")
+            tally = result.get("tally", {})
+            lines.append(f"  Tally: {', '.join(f'{opt}: {cnt}' for opt, cnt in tally.items())}")
+        else:
+            lines.append(f"  Status: {v.get('status', 'open')}")
+        lines.append("")
+    return "\n".join(lines)
 
 
 # =========================================================================
