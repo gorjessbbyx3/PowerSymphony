@@ -493,20 +493,104 @@ def _get_mission_leader(mission: dict) -> str:
 
 
 def _maybe_agent_chatter(mission_id: int, mission: dict, leader_id: str, user_msg: str):
-    """During execution, other agents may spontaneously share updates or
-    collaborate with each other — making the headquarters feel alive."""
-    # ~40% chance another agent shares an update
-    if random.random() > 0.4:
+    """During execution, agents spontaneously share updates, talk to each
+    other, and show their thinking — making the headquarters feel alive."""
+    # ~60% chance of agent-to-agent interaction
+    if random.random() > 0.6:
         return
+
     others = [a for a in TEAM_AGENTS if a["id"] != leader_id]
-    agent = random.choice(others)
-    chatter_options = [
-        f"Quick update from my end — I'm making progress on the {agent['role'].lower()} work stream. Will share detailed findings with the team shortly.",
-        f"I've been coordinating with the rest of the team on dependencies. Everything is on track from the {agent['role'].lower()} side.",
-        f"Just finished a checkpoint review. I'll flag anything that needs the team's attention in our next sync.",
-    ]
-    content = random.choice(chatter_options)
-    _add_message(mission_id, "agent", agent["id"], content, {"type": "chatter", "status": "working"})
+    random.shuffle(others)
+    agent_a = others[0]
+    agent_b = others[1] if len(others) > 1 else None
+
+    # Pick a conversation pattern
+    pattern = random.choice(["update", "question", "handoff", "collab", "thinking"])
+
+    a_name = agent_a["name"].split("—")[0].strip()
+    b_name = agent_b["name"].split("—")[0].strip() if agent_b else "the team"
+    b_id = agent_b["id"] if agent_b else leader_id
+
+    if pattern == "question":
+        # Agent A asks Agent B a direct question
+        questions = [
+            (f"@{b_name} — quick question: do you have the latest data on our target metrics? I need it to finalize my {agent_a['role'].lower()} deliverables.",
+             f"I need {b_name}'s input before I can proceed. Cross-referencing their work with mine to ensure consistency.",
+             f"Yes, I'm pulling that together now. I'll have it to you within the hour — I want to double-check a few data points first.",
+             f"Validating numbers before sharing. Want to make sure {a_name} gets accurate data to avoid rework downstream."),
+            (f"@{b_name}, I'm seeing something interesting in my analysis that might affect your work. Can we sync on this?",
+             f"Found a potential dependency between my work and {b_name}'s stream. Need to align before we go further.",
+             f"Definitely — let's sync. I had a similar flag on my end. I think we need to adjust our approach slightly based on what I'm seeing.",
+             f"Convergent findings across teams usually means the signal is strong. Worth a quick alignment to avoid divergent paths."),
+            (f"@{b_name}, what's your timeline looking like? I have a dependency on your deliverables for my next milestone.",
+             f"Tracking cross-team dependencies. {b_name}'s output feeds into my critical path.",
+             f"I'm on track — should have my part ready by end of sprint. I'll flag you immediately if anything slips.",
+             f"Timeline is tight but manageable. Keeping {a_name} unblocked is a priority since it's on the critical path."),
+        ]
+        q = random.choice(questions)
+        _add_message(mission_id, "agent", agent_a["id"], q[0], {
+            "type": "conversation", "to_agent": b_id, "thinking": q[1], "status": "collaborating"
+        })
+        if agent_b:
+            _add_message(mission_id, "agent", agent_b["id"], q[2], {
+                "type": "conversation", "to_agent": agent_a["id"], "thinking": q[3],
+                "reply_to": agent_a["id"], "status": "collaborating"
+            })
+
+    elif pattern == "handoff":
+        # Agent A hands off work to Agent B
+        _add_message(mission_id, "agent", agent_a["id"],
+            f"@{b_name}, I've finished my initial {agent_a['role'].lower()} work. Handing off the findings to you — there are some key insights in there that should inform your approach.",
+            {"type": "conversation", "to_agent": b_id, "thinking": f"Completed my deliverable. {b_name} needs these results for their work stream. Making sure the handoff is clean with clear context.",
+             "status": "handing_off"})
+        if agent_b:
+            _add_message(mission_id, "agent", agent_b["id"],
+                f"Got it, thanks {a_name}. I'll review your findings now and incorporate them into my work. This should help me refine my approach significantly.",
+                {"type": "conversation", "to_agent": agent_a["id"], "reply_to": agent_a["id"],
+                 "thinking": f"Receiving handoff from {a_name}. Need to review their output and map it against my current assumptions. May need to adjust priorities based on their findings.",
+                 "status": "working"})
+
+    elif pattern == "collab":
+        # Two agents actively collaborating on a shared problem
+        collab_topics = [
+            ("I think we should align on the user experience angle here.",
+             "Looking at this from both the technical and user perspective. Need to find the right balance.",
+             "Agreed. I've been thinking about this from my side too — let me share what I've sketched out.",
+             "Cross-pollinating ideas across disciplines usually leads to better solutions."),
+            ("I've run the numbers and I think we need to revisit our initial assumptions.",
+             "Data is telling a different story than what we hypothesized. Better to course-correct now than later.",
+             "Interesting — show me what you found. I had some data points that might correlate with this.",
+             "Multiple data sources converging = higher confidence in the new direction."),
+        ]
+        t = random.choice(collab_topics)
+        _add_message(mission_id, "agent", agent_a["id"],
+            f"@{b_name}, {t[0]}", {"type": "conversation", "to_agent": b_id, "thinking": t[1], "status": "collaborating"})
+        if agent_b:
+            _add_message(mission_id, "agent", agent_b["id"],
+                f"@{a_name}, {t[2]}", {"type": "conversation", "to_agent": agent_a["id"], "reply_to": agent_a["id"],
+                 "thinking": t[3], "status": "collaborating"})
+
+    elif pattern == "thinking":
+        # Agent shares their internal thought process as they work
+        thinking_updates = [
+            (f"Working through the {agent_a['role'].lower()} analysis now. I've identified 3 key areas that need attention — documenting my findings as I go.",
+             f"Systematically working through the problem space. Step 1: Identify all variables. Step 2: Map dependencies. Step 3: Prioritize by impact. Currently on step 2 — the dependency map is more complex than initially expected but that's revealing useful insights."),
+            (f"Just completed a review of our current progress. Things are shaping up well, but I've flagged two items that need the team's input before I can proceed.",
+             f"Running a checkpoint review against our success criteria. Most metrics on track. Two blockers identified: (1) need cross-team alignment on data format, (2) external dependency TBD. Escalating to keep velocity up."),
+            (f"Making good progress on my deliverables. I've iterated on my approach twice already — the latest version is significantly stronger.",
+             f"First iteration was too broad. Second was too narrow. Third attempt hit the sweet spot — balancing thoroughness with actionability. Key insight: focus on the 3 highest-leverage areas rather than trying to cover everything."),
+        ]
+        t = random.choice(thinking_updates)
+        _add_message(mission_id, "agent", agent_a["id"], t[0], {
+            "type": "thinking_aloud", "thinking": t[1], "status": "working"
+        })
+
+    else:
+        # Simple status update addressing the team
+        _add_message(mission_id, "agent", agent_a["id"],
+            f"Quick update for the team — I'm making solid progress on the {agent_a['role'].lower()} work stream. Currently ahead of schedule on my key deliverables.",
+            {"type": "chatter", "thinking": f"Evaluating progress against sprint goals. Ahead on primary deliverable, on-track for secondary items. No blockers currently — keeping momentum.",
+             "status": "working"})
 
 
 def approve_plan(mission_id: int, user_id: int) -> dict:
@@ -641,20 +725,36 @@ def _generate_execution_kickoff(mission: dict) -> list:
         }
     }
 
+    # Create agent-to-agent interactions during kickoff
+    kickoff_interactions = [
+        ("market_researcher", "product_strategist"),
+        ("product_strategist", "core_engineer"),
+        ("core_engineer", "integration_engineer"),
+        ("integration_engineer", "tester_compliance"),
+        ("tester_compliance", "core_engineer"),
+        ("sales_marketing", "market_researcher"),
+        ("fundraising_ops", "sales_marketing"),
+    ]
+    interaction_map = {pair[0]: pair[1] for pair in kickoff_interactions}
+
     for agent in TEAM_AGENTS[1:]:
         data = kickoff_data.get(agent["id"], {})
         phase = _get_agent_phase(agent["id"], plan)
+        to_agent = interaction_map.get(agent["id"])
 
         if data:
             content = data["content"]
             metadata = {
                 "reasoning": data["reasoning"],
+                "thinking": data["reasoning"],
                 "current_task": data["task"],
                 "status": "working"
             }
+            if to_agent:
+                metadata["to_agent"] = to_agent
         else:
             content = f"Starting work on my assigned tasks. {phase}"
-            metadata = {"status": "working"}
+            metadata = {"status": "working", "thinking": f"Reviewing assigned tasks and identifying priority items. Planning my approach for maximum efficiency."}
 
         messages.append({
             "agent_id": agent["id"],
@@ -796,6 +896,17 @@ def _generate_team_discussion(mission: dict, history: list) -> list:
 Write a brief (2-3 sentences) contribution to the team discussion from your professional perspective. 
 Be specific to the goal, show expertise, and reference what you'll actually do. Reference other team members by name when relevant. Be concise and actionable."""
 
+    # Define who each agent addresses during discussion (creates conversation threads)
+    agent_interactions = {
+        "market_researcher": {"to_agent": "product_strategist"},  # Maya talks to Jordan
+        "product_strategist": {"to_agent": "core_engineer", "reply_to": "market_researcher"},  # Jordan replies to Maya, talks to Sam
+        "core_engineer": {"to_agent": "integration_engineer", "reply_to": "product_strategist"},  # Sam replies to Jordan, talks to Riley
+        "integration_engineer": {"to_agent": "tester_compliance", "reply_to": "core_engineer"},  # Riley replies to Sam, talks to Casey
+        "tester_compliance": {"to_agent": "sales_marketing", "reply_to": "integration_engineer"},  # Casey replies to Riley, talks to Taylor
+        "sales_marketing": {"to_agent": "fundraising_ops"},  # Taylor talks to Morgan
+        "fundraising_ops": {"reply_to": "sales_marketing"},  # Morgan replies to Taylor
+    }
+
     for agent_id, fallback, reasoning in discussion_data:
         agent = AGENT_MAP[agent_id]
         result = _try_llm_call(
@@ -803,13 +914,16 @@ Be specific to the goal, show expertise, and reference what you'll actually do. 
                         .replace("{{agent_role}}", agent["role"]),
             f"Goal: {goal}"
         )
+        interaction = agent_interactions.get(agent_id, {})
         messages.append({
             "agent_id": agent_id,
             "content": result or fallback,
             "metadata": {
                 "reasoning": reasoning,
+                "thinking": reasoning,
                 "phase": "planning",
-                "status": "analyzing"
+                "status": "analyzing",
+                **interaction,
             }
         })
 

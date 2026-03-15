@@ -140,8 +140,9 @@
                 </div>
               </div>
 
-              <!-- Regular agent messages -->
-              <div v-else-if="msg.role === 'agent'" class="feed-agent-msg" :class="{ 'is-leader': msg.agent_name === electedLeaderId }">
+              <!-- Agent-to-agent conversation messages -->
+              <div v-else-if="msg.role === 'agent' && (msg.metadata?.type === 'conversation' || msg.metadata?.type === 'thinking_aloud')" class="feed-agent-msg conversation-msg" :class="{ 'is-leader': msg.agent_name === electedLeaderId, 'is-reply': msg.metadata?.reply_to }">
+                <div class="conversation-thread-line" v-if="msg.metadata?.reply_to"></div>
                 <div class="feed-msg-row">
                   <div class="feed-msg-dot" :style="{ background: getAgent(msg.agent_name)?.color || '#58a6ff' }">
                     {{ getAgent(msg.agent_name)?.avatar || '?' }}
@@ -152,11 +153,60 @@
                   <div class="feed-msg-body">
                     <div class="feed-msg-header">
                       <span class="feed-name" :style="{ color: getAgent(msg.agent_name)?.color }">{{ getAgentShortName(msg.agent_name) }}</span>
+                      <span v-if="msg.metadata?.to_agent" class="conversation-arrow">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#484f58" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                      </span>
+                      <span v-if="msg.metadata?.to_agent" class="feed-name to-agent" :style="{ color: getAgent(msg.metadata.to_agent)?.color }">{{ getAgentShortName(msg.metadata.to_agent) }}</span>
+                      <span v-if="msg.metadata?.reply_to" class="reply-badge">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
+                        reply
+                      </span>
+                      <span class="feed-time">{{ formatTime(msg.created_at) }}</span>
+                    </div>
+                    <div class="feed-text" v-html="renderMarkdown(msg.content)"></div>
+                    <!-- Always-visible thinking bubble for conversations -->
+                    <div class="thinking-bubble" v-if="msg.metadata?.thinking">
+                      <div class="thinking-header">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+                        <span>Internal thinking</span>
+                      </div>
+                      <div class="thinking-text">{{ msg.metadata.thinking }}</div>
+                    </div>
+                    <div v-if="msg.metadata?.current_task" class="feed-task-tag">{{ msg.metadata.current_task }}</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Regular agent messages -->
+              <div v-else-if="msg.role === 'agent'" class="feed-agent-msg" :class="{ 'is-leader': msg.agent_name === electedLeaderId, 'has-thinking': msg.metadata?.thinking || msg.metadata?.reasoning }">
+                <div class="feed-msg-row">
+                  <div class="feed-msg-dot" :style="{ background: getAgent(msg.agent_name)?.color || '#58a6ff' }">
+                    {{ getAgent(msg.agent_name)?.avatar || '?' }}
+                    <span v-if="msg.agent_name === electedLeaderId" class="mini-crown">
+                      <svg width="8" height="8" viewBox="0 0 24 24" fill="#ffd700" stroke="none"><path d="M2 4l3 12h14l3-12-6 7-4-9-4 9-6-7z"/></svg>
+                    </span>
+                  </div>
+                  <div class="feed-msg-body">
+                    <div class="feed-msg-header">
+                      <span class="feed-name" :style="{ color: getAgent(msg.agent_name)?.color }">{{ getAgentShortName(msg.agent_name) }}</span>
+                      <span v-if="msg.metadata?.to_agent" class="conversation-arrow">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#484f58" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                      </span>
+                      <span v-if="msg.metadata?.to_agent" class="feed-name to-agent" :style="{ color: getAgent(msg.metadata.to_agent)?.color }">{{ getAgentShortName(msg.metadata.to_agent) }}</span>
                       <span class="feed-role">{{ getAgent(msg.agent_name)?.role }}</span>
                       <span class="feed-time">{{ formatTime(msg.created_at) }}</span>
                     </div>
                     <div class="feed-text" v-html="renderMarkdown(msg.content)"></div>
-                    <div class="feed-reasoning" v-if="msg.metadata?.reasoning">
+                    <!-- Thinking bubble — always visible when present -->
+                    <div class="thinking-bubble" v-if="msg.metadata?.thinking">
+                      <div class="thinking-header">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+                        <span>Internal thinking</span>
+                      </div>
+                      <div class="thinking-text">{{ msg.metadata.thinking }}</div>
+                    </div>
+                    <!-- Legacy reasoning toggle for older messages without thinking field -->
+                    <div class="feed-reasoning" v-else-if="msg.metadata?.reasoning">
                       <button class="reasoning-toggle" @click="toggleReasoning(msg.id)">
                         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/></svg>
                         {{ expandedReasoning.has(msg.id) ? 'Hide' : 'Show' }} thinking
@@ -253,8 +303,9 @@ let pollInterval = null
 
 const feedFilters = [
   { id: 'all', label: 'All' },
+  { id: 'conversations', label: 'Conversations' },
   { id: 'decisions', label: 'Decisions' },
-  { id: 'agents', label: 'Agents Only' },
+  { id: 'thinking', label: 'Thinking' },
 ]
 
 const agentMap = computed(() => {
@@ -276,6 +327,13 @@ const agentMessages = computed(() => messages.value.filter(m => m.role === 'agen
 
 const filteredMessages = computed(() => {
   if (activeFeedFilter.value === 'all') return messages.value.filter(m => m.role !== 'user' || m.content)
+  if (activeFeedFilter.value === 'conversations') {
+    return messages.value.filter(m =>
+      m.metadata?.type === 'conversation' ||
+      m.metadata?.to_agent ||
+      m.metadata?.reply_to
+    )
+  }
   if (activeFeedFilter.value === 'decisions') {
     return messages.value.filter(m =>
       m.metadata?.type === 'vote' ||
@@ -283,8 +341,12 @@ const filteredMessages = computed(() => {
       (m.role === 'system')
     )
   }
-  if (activeFeedFilter.value === 'agents') {
-    return messages.value.filter(m => m.role === 'agent')
+  if (activeFeedFilter.value === 'thinking') {
+    return messages.value.filter(m =>
+      m.metadata?.thinking ||
+      m.metadata?.reasoning ||
+      m.metadata?.type === 'thinking_aloud'
+    )
   }
   return messages.value
 })
@@ -514,6 +576,19 @@ function renderMarkdown(text) {
 .feed-text :deep(.md-li) { padding-left: 14px; position: relative; margin: 3px 0; }
 .feed-text :deep(.md-li::before) { content: ''; position: absolute; left: 3px; top: 8px; width: 3px; height: 3px; border-radius: 50%; background: #484f58; }
 .feed-text :deep(.md-hr) { border: none; border-top: 1px solid rgba(255,255,255,0.06); margin: 10px 0; }
+
+/* Conversation threading */
+.conversation-msg { position: relative; }
+.conversation-msg.is-reply { margin-left: 20px; border-left: 2px solid rgba(88,166,255,0.15); }
+.conversation-thread-line { position: absolute; left: -10px; top: 0; bottom: 0; width: 2px; background: rgba(88,166,255,0.1); }
+.conversation-arrow { display: flex; align-items: center; margin: 0 2px; }
+.to-agent { font-weight: 600; font-size: 12px; }
+.reply-badge { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; color: #58a6ff; background: rgba(88,166,255,0.08); padding: 1px 6px; border-radius: 8px; margin-left: 4px; }
+
+/* Always-visible thinking bubbles */
+.thinking-bubble { margin-top: 8px; padding: 8px 12px; background: rgba(163,113,247,0.04); border: 1px solid rgba(163,113,247,0.1); border-radius: 10px; border-left: 3px solid rgba(163,113,247,0.25); }
+.thinking-header { display: flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 600; color: #a371f7; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+.thinking-text { font-size: 12px; color: #8b949e; line-height: 1.5; font-style: italic; }
 
 .feed-reasoning { margin-top: 6px; }
 .reasoning-toggle { display: flex; align-items: center; gap: 4px; background: none; border: none; color: #484f58; font-size: 11px; cursor: pointer; padding: 2px 0; }
