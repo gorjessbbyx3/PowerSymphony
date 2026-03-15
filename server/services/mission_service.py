@@ -931,7 +931,6 @@ def _add_message(mission_id: int, role: str, agent_name: str | None, content: st
                VALUES (%s, %s, %s, %s, %s)""",
             (mission_id, role, agent_name, content, json.dumps(metadata or {})),
         )
-    with get_cursor() as cur:
         cur.execute("UPDATE missions SET updated_at = NOW() WHERE id = %s", (mission_id,))
 
 
