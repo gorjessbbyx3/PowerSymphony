@@ -36,6 +36,14 @@ def init_app(app: FastAPI) -> None:
 
     app.include_router(config_schema_router)
 
+    # Mount PowerSymphony MCP server for AI client connections
+    try:
+        from mcp_server.server import mcp as mcp_app
+        mcp_app.mount(app, path="/mcp")
+        logger.info("MCP server mounted at /mcp")
+    except Exception as e:
+        logger.warning(f"MCP server mount skipped: {e}")
+
     dist_dir = Path("frontend/dist")
     if dist_dir.is_dir():
         from fastapi.responses import FileResponse

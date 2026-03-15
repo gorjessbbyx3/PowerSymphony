@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "powersymphony": {
+      "command": "python",
+      "args": ["-m", "mcp_server.server"],
+      "cwd": "/home/user/PowerSymphony",
+      "env": {
+        "POWERSYMPHONY_URL": "http://localhost:8000",
+        "POWERSYMPHONY_TOKEN": ""
+      }
+    }
+  }
+}
