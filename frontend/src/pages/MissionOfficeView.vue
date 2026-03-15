@@ -456,7 +456,7 @@ const conversationCount = computed(() =>
 
 const feedFilters = computed(() => [
   { id: 'all', label: 'All' },
-  { id: 'conversations', label: 'Conversations', count: conversationCount.value || undefined },
+  { id: 'conversations', label: 'Conversations', count: conversationCount.value || 0 },
   { id: 'debates', label: 'Debates' },
   { id: 'decisions', label: 'Decisions' },
   { id: 'thinking', label: 'Thinking' },

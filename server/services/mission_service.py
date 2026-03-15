@@ -712,6 +712,38 @@ def _generate_agent_interaction(mission_id: int, mission: dict, leader_id: str):
                  "thinking": f"Need to unblock {a_name} ASAP. The spec is 80% ready — just need to finalize the edge cases. Adding a note to be more proactive about cross-team deliverables.",
                  "confidence": 85, "status": "unblocking"})
 
+    elif pattern == "thinking":
+        # Agent shares deep thinking / internal reasoning publicly
+        thinking_msgs = [
+            {
+                "msg": f"I've been analyzing the approach for my {agent_a['role'].lower()} deliverables. There are 3 possible strategies and I want to walk through the tradeoffs before committing. Strategy A is fastest but riskiest. Strategy B is safest but slowest. Strategy C balances both. Leaning toward C — thoughts?",
+                "thinking": "Running decision matrix on 3 possible approaches. Need to weigh speed vs. reliability. Strategy C gives us 80% of A's speed with 90% of B's safety. The remaining risk is acceptable given our timeline constraints.",
+                "confidence": 78,
+            },
+            {
+                "msg": f"Thinking out loud: the current data suggests we should pivot our {agent_a['role'].lower()} approach. The signals I'm seeing don't match our initial assumptions. Before I change course, I want to stress-test my reasoning — am I missing something?",
+                "thinking": "Anomaly detected in current approach. 3 out of 5 metrics are trending opposite to predictions. Could be noise or could be a fundamental assumption error. Need peer validation before committing to the pivot.",
+                "confidence": 65,
+            },
+            {
+                "msg": f"Working through a complex tradeoff on the {agent_a['role'].lower()} side. More analysis is better, but we're time-boxed. I'm setting a decision deadline for myself — if I don't have a clear winner in the next iteration, I'll go with my current best option and iterate later.",
+                "thinking": "Analysis paralysis risk is real here. Setting a time-box is the right call. Current best option has ~75% confidence — good enough to move forward and course-correct with real feedback rather than theoretical analysis.",
+                "confidence": 72,
+            },
+        ]
+        t = random.choice(thinking_msgs)
+        _add_message(mission_id, "agent", agent_a["id"], t["msg"], {
+            "type": "thinking", "thinking": t["thinking"],
+            "confidence": t["confidence"], "status": "analyzing"
+        })
+        # Another agent may respond to the thinking
+        if agent_b and random.random() < 0.6:
+            _add_message(mission_id, "agent", agent_b["id"],
+                f"@{a_name}, good call raising this. From my {agent_b['role'].lower()} perspective, I'd add one more factor to your analysis — the downstream impact on my work stream. Happy to jump on a quick sync if it'd help.",
+                {"type": "conversation", "reply_to": agent_a["id"], "to_agent": agent_a["id"],
+                 "thinking": f"{a_name}'s analysis is solid but missing the cross-functional angle. My input could tip the balance. Offering to sync rather than just dropping my opinion — want to understand their full reasoning first.",
+                 "confidence": random.randint(70, 85), "status": "collaborating"})
+
     else:
         _add_message(mission_id, "agent", agent_a["id"],
             f"Quick update for the team — I'm making solid progress on the {agent_a['role'].lower()} work stream. Currently ahead of schedule on my key deliverables.",
