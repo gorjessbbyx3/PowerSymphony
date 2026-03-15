@@ -238,8 +238,8 @@ TEAM_AGENTS = [
         "color": "#58a6ff",
         "description": "Coordinates the entire team, breaks down goals into actionable plans, and ensures alignment across all departments.",
         "kpis": [
-            "100% team alignment on weekly sprint goals",
-            "Daily sync completion rate > 95%",
+            "100% team alignment on current goals",
+            "Sync completion rate > 95%",
             "Milestone delivery within 10% of timeline"
         ],
         "dependencies": ["All agents report to Alex", "Resolves cross-team blockers"],
@@ -253,9 +253,9 @@ TEAM_AGENTS = [
         "color": "#f0883e",
         "description": "Analyzes sales data, identifies target industries (e.g., SaaS firms with 50-500 employees), maps competitive landscapes, and validates product-market fit through data-driven research.",
         "kpis": [
-            "Generate 50 validated pain points/week",
-            "Competitive analysis covering top 10 players",
-            "TAM/SAM/SOM estimation within 2 weeks"
+            "Identify and validate key pain points quickly",
+            "Competitive analysis covering top players",
+            "TAM/SAM/SOM estimation within scope"
         ],
         "dependencies": ["Feeds insights to Jordan (Product Strategy)", "Data informs Taylor's marketing"],
         "icon": "search"
@@ -270,7 +270,7 @@ TEAM_AGENTS = [
         "kpis": [
             "Roadmap with quarterly updates based on user feedback",
             "Feature prioritization score > 80% alignment with user needs",
-            "PRD completion within 1 week of research handoff"
+            "PRD completion promptly after research handoff"
         ],
         "dependencies": ["Receives research from Maya", "Hands specs to Sam for engineering"],
         "icon": "lightbulb"
@@ -283,7 +283,7 @@ TEAM_AGENTS = [
         "color": "#3fb950",
         "description": "Builds the orchestration engine including agent communication protocols and RLHF for self-improvement. Designs system architecture and writes core code for the MVP.",
         "kpis": [
-            "Deploy MVP backend in 4 weeks",
+            "Deploy MVP backend as fast as possible",
             "Code coverage > 80%",
             "API response time < 200ms p95"
         ],
@@ -330,7 +330,7 @@ TEAM_AGENTS = [
         "color": "#f778ba",
         "description": "Crafts pitches, runs A/B tests on outreach, builds brand presence, acquires users via LinkedIn/email campaigns, and drives growth metrics.",
         "kpis": [
-            "Acquire 20 beta users in Month 2",
+            "Acquire initial beta users quickly",
             "Email open rate > 25%",
             "Landing page conversion > 5%",
             "Social media reach: 10K impressions/week"
@@ -347,9 +347,9 @@ TEAM_AGENTS = [
         "description": "Models financials, generates pitch decks, monitors metrics like CAC:LTV ratio. Manages budgets, fundraising strategy, and revenue model optimization.",
         "kpis": [
             "CAC:LTV ratio > 1:3",
-            "Secure simulated/angel funding equivalent to $1M in Month 3",
+            "Prepare funding materials and financial projections",
             "Monthly burn rate tracking with < 5% variance",
-            "Revenue model validated within 6 weeks"
+            "Revenue model validated promptly"
         ],
         "dependencies": ["Financial models informed by Taylor's acquisition data", "Budget approvals for Sam's infrastructure"],
         "icon": "chart"
@@ -680,7 +680,7 @@ def _generate_agent_interaction(mission_id: int, mission: dict, leader_id: str):
         _add_message(mission_id, "agent", agent_a["id"],
             f"Team — I just found something significant in my {agent_a['role'].lower()} work. This changes our positioning considerably. I'm documenting it now and will share the full analysis, but the short version: we have a much bigger opportunity here than we initially thought.",
             {"type": "breakthrough",
-             "thinking": f"Major finding. Confidence is high — I've cross-validated from 3 sources. This could accelerate our timeline by 2-3 weeks if we adjust our strategy now. Need to present this clearly so the team can act on it quickly.",
+             "thinking": f"Major finding. Confidence is high — I've cross-validated from 3 sources. This could significantly accelerate our timeline if we adjust our strategy now. Need to present this clearly so the team can act on it quickly.",
              "confidence": 92, "status": "breakthrough"})
         # Another agent reacts
         if agent_b:
@@ -812,7 +812,7 @@ def _generate_approach_options(mission: dict) -> list:
     """Generate vote options for the team's strategic approach."""
     goal_lower = mission.get("goal", "").lower()
     if any(w in goal_lower for w in ["app", "software", "build", "platform", "tool", "api"]):
-        return ["Move fast — ship MVP in 3 weeks", "Build solid — 6 week MVP with full testing", "Research first — 2 weeks discovery then build"]
+        return ["Move fast — ship MVP in hours", "Build solid — 1-2 day MVP with testing", "Research first — quick discovery then build"]
     elif any(w in goal_lower for w in ["marketing", "growth", "social", "content", "brand"]):
         return ["Broad awareness campaign", "Targeted niche strategy", "Community-driven organic growth"]
     elif any(w in goal_lower for w in ["research", "analysis", "study", "report"]):
@@ -848,22 +848,22 @@ def _generate_execution_kickoff(mission: dict) -> list:
 
     kickoff_data = {
         "market_researcher": {
-            "content": "Starting deep-dive market analysis. I'm pulling data on target industries and mapping competitor positioning. My goal is to have 50 validated pain points documented within the first week. I'll share my findings with Jordan for product strategy alignment.",
+            "content": "Starting deep-dive market analysis. I'm pulling data on target industries and mapping competitor positioning. My goal is to have key pain points documented within the next hour. I'll share my findings with Jordan for product strategy alignment.",
             "reasoning": "Beginning with broad market scan, then narrowing to specific segments. Using competitive intelligence frameworks to identify gaps we can exploit.",
             "task": "Market analysis & competitive research"
         },
         "product_strategist": {
-            "content": "I'm defining the core feature set based on our discussions. Working on the PRD now — I'll have the initial roadmap ready for review within 3 days. Coordinating with Sam on technical feasibility for each feature.",
+            "content": "I'm defining the core feature set based on our discussions. Working on the PRD now — I'll have the initial roadmap ready for review shortly. Coordinating with Sam on technical feasibility for each feature.",
             "reasoning": "Prioritizing features by impact vs. effort matrix. Focusing on the 20% of features that deliver 80% of value for our target users.",
             "task": "Product roadmap & feature specification"
         },
         "core_engineer": {
-            "content": "Setting up the development environment and architecting the core system. I'm going with a microservices approach for scalability. Sprint 1 focus: authentication, core data models, and the primary API endpoints. Target: MVP backend in 4 weeks.",
+            "content": "Setting up the development environment and architecting the core system. Focusing on authentication, core data models, and the primary API endpoints first. I'll have the foundation ready within hours.",
             "reasoning": "Chose microservices over monolith for better scaling and team parallelism. Starting with the most critical path items to unblock other team members.",
             "task": "System architecture & MVP development"
         },
         "integration_engineer": {
-            "content": "Spinning up the cloud infrastructure now. CI/CD pipeline will be ready by end of day. I'm also mapping out the integration points — starting with the most critical third-party APIs. Target: 5+ integrations ready for beta.",
+            "content": "Spinning up the cloud infrastructure now. CI/CD pipeline will be ready shortly. I'm also mapping out the integration points — starting with the most critical third-party APIs.",
             "reasoning": "Infrastructure-first approach ensures Sam can deploy continuously. Prioritizing integrations by user-facing impact and technical complexity.",
             "task": "Infrastructure setup & API integrations"
         },
@@ -873,12 +873,12 @@ def _generate_execution_kickoff(mission: dict) -> list:
             "task": "QA framework & compliance audit"
         },
         "sales_marketing": {
-            "content": "Building the go-to-market strategy now. Starting with our ideal customer profile based on Maya's research. I'm designing the landing page and setting up our LinkedIn outreach sequences. Target: 20 beta users in Month 2.",
+            "content": "Building the go-to-market strategy now. Starting with our ideal customer profile based on Maya's research. I'm designing the landing page and setting up outreach sequences.",
             "reasoning": "Starting marketing before product is ready creates demand and validates messaging. A/B testing outreach templates to optimize conversion from day one.",
             "task": "GTM strategy & beta user acquisition"
         },
         "fundraising_ops": {
-            "content": "Financial model is in progress — projecting 18-month runway scenarios. I'm tracking our burn rate from day one and building the pitch deck for potential investors. Targeting CAC:LTV ratio > 1:3 as our north star metric.",
+            "content": "Financial model is in progress. I'm tracking costs and building the pitch deck. Targeting CAC:LTV ratio > 1:3 as our north star metric. Should have projections ready within the hour.",
             "reasoning": "Early financial modeling helps us make smart resource allocation decisions. Building investor materials now so we're ready when the time is right.",
             "task": "Financial modeling & fundraising prep"
         }
@@ -980,9 +980,17 @@ Morgan (Operations/Finance).
 The user has given the goal: "{goal}"
 Current mission status: {mission.get('status', 'gathering_info')}
 
-If status is 'gathering_info': Ask 2-3 smart, specific follow-up questions to clarify scope, target audience, 
-budget constraints, timeline preferences, or technical requirements. Be conversational and enthusiastic.
-Show you understand the ambition. Don't ask more than 3 questions at a time.
+If status is 'gathering_info': Ask 2-3 smart, specific follow-up questions to clarify scope before planning.
+Be conversational and enthusiastic. Show you understand the ambition. Don't ask more than 3 questions at a time.
+
+IMPORTANT — tailor your questions to the specific type of mission:
+- For social media / content / brand missions: Ask about which platforms (Instagram, TikTok, Twitter, LinkedIn, etc.),
+  whether they need a brand new account or already have one, what kind of content they want (images, videos, reels,
+  carousels, text posts, stories), their target audience, brand voice/tone, and posting frequency.
+- For software / app / tool missions: Ask about tech stack preferences, target users, and key features.
+- For research / analysis missions: Ask about data sources, depth of analysis, and deliverable format.
+- For marketing / growth missions: Ask about channels, budget, and success metrics.
+Always ask questions relevant to the specific goal — never ask generic filler questions.
 
 If status is 'awaiting_approval': Address user's concerns about the plan and offer to adjust.
 
@@ -995,14 +1003,42 @@ Keep responses concise (under 200 words). Be direct, confident, and show experti
         return result
 
     if mission.get("status") == "gathering_info" and len(history) <= 2:
-        return (
-            f"Great goal! I'm excited to help make this happen. Before my team and I dive in, "
-            f"I need to understand a few things:\n\n"
-            f"1. **Target Audience** — Who is this primarily for? Do you have a specific demographic or market in mind?\n\n"
-            f"2. **Timeline & Budget** — What's your ideal timeline? Are there budget constraints we should factor in?\n\n"
-            f"3. **Competitive Edge** — What should make this stand out from existing solutions? Any specific features that are must-haves?\n\n"
-            f"Once I have these details, I'll brief the team and we'll put together a concrete plan for you."
-        )
+        goal_lower = goal.lower()
+        # Social media / content / brand missions
+        if any(w in goal_lower for w in ["social media", "content", "brand", "instagram", "tiktok", "twitter", "linkedin", "followers", "posting", "influencer", "youtube"]):
+            return (
+                f"Love it! Social media done right can be a game-changer. Before my team starts planning, "
+                f"I need to understand a few things:\n\n"
+                f"1. **Accounts & Platforms** — Are we building a brand new account from scratch, or do you already have existing accounts? "
+                f"Which platforms are we targeting (Instagram, TikTok, Twitter/X, LinkedIn, YouTube, etc.)?\n\n"
+                f"2. **Content Type** — What kind of content do you want? For example:\n"
+                f"   - Written posts, captions, and copy\n"
+                f"   - AI-generated images and graphics\n"
+                f"   - Video scripts and storyboards\n"
+                f"   - A full content calendar with a mix of everything\n\n"
+                f"3. **Brand Voice & Audience** — Who's the target audience, and what tone should the content have "
+                f"(professional, casual, edgy, inspirational, educational)?\n\n"
+                f"Once I know this, my team can put together a plan with the right content strategy for you."
+            )
+        # Software / app missions
+        elif any(w in goal_lower for w in ["app", "software", "build", "platform", "tool", "api", "website", "code"]):
+            return (
+                f"Great goal! I'm excited to help make this happen. Before my team and I dive in, "
+                f"I need to understand a few things:\n\n"
+                f"1. **Target Users** — Who will use this? What's the core problem it solves for them?\n\n"
+                f"2. **Key Features** — What are the 2-3 must-have features for a first version?\n\n"
+                f"3. **Tech Preferences** — Any preferences on tech stack, hosting, or integrations?\n\n"
+                f"Once I have these details, I'll brief the team and we'll put together a concrete plan for you."
+            )
+        else:
+            return (
+                f"Great goal! I'm excited to help make this happen. Before my team and I dive in, "
+                f"I need to understand a few things:\n\n"
+                f"1. **Target Audience** — Who is this primarily for? Do you have a specific demographic or market in mind?\n\n"
+                f"2. **Scope & Deliverables** — What does the end result look like? What specific outputs do you need?\n\n"
+                f"3. **Constraints** — Any timeline, budget, or other constraints we should factor in?\n\n"
+                f"Once I have these details, I'll brief the team and we'll put together a concrete plan for you."
+            )
     elif mission.get("status") == "gathering_info":
         return (
             "Thanks for those details! That gives us a much clearer picture. "
@@ -1027,13 +1063,13 @@ def _generate_team_discussion(mission: dict, history: list) -> list:
 
     discussion_data = [
         ("market_researcher", 
-         f"I've done preliminary research on the market for this goal. There's significant opportunity here, but we need to be strategic about positioning. The competitive landscape has some established players, but I've identified key gaps we can exploit. I'll have my full analysis with 50 validated pain points ready within the week.",
+         f"I've done preliminary research on the market for this goal. There's significant opportunity here, but we need to be strategic about positioning. The competitive landscape has some established players, but I've identified key gaps we can exploit. I'll have my full analysis ready shortly.",
          "Scanning market databases and competitor APIs. Initial TAM estimate looks promising. Cross-referencing with industry reports to validate assumptions."),
         ("product_strategist", 
          f"Based on Maya's initial research, I'm thinking we should focus on a phased approach. Phase 1 should be the core value proposition — the thing that makes users say 'I need this.' I'm designing the feature roadmap now with quarterly update cycles based on user feedback loops.",
          "Evaluating Maya's market gaps against technical feasibility. Prioritizing features using RICE framework (Reach, Impact, Confidence, Effort)."),
         ("core_engineer", 
-         f"From a technical standpoint, I can architect this using modern, scalable infrastructure. I'll set up the core system in the first sprint with a target of MVP backend in 4 weeks. Building with RLHF-ready agent communication protocols so we can iterate based on real usage.",
+         f"From a technical standpoint, I can architect this using modern, scalable infrastructure. I'll set up the core system and get an MVP running as quickly as possible. Building with iteration-ready agent communication protocols so we can improve based on real usage.",
          "Evaluating microservices vs monolith tradeoffs. Leaning toward microservices for team parallelism. Will need Riley's input on deployment topology."),
         ("integration_engineer", 
          f"I'll handle the deployment pipeline and make sure we have proper monitoring from day one. I've mapped out the integrations we'll need — targeting HubSpot, Salesforce, and 3 other critical APIs for launch. I can have the infrastructure ready in parallel with Sam's core development. Targeting 95% uptime from day one.",
@@ -1042,10 +1078,10 @@ def _generate_team_discussion(mission: dict, history: list) -> list:
          f"I'll set up automated testing from the start — that's non-negotiable for quality. I'm also reviewing GDPR and data security requirements. We need to be compliant from day one, not as an afterthought. My target: zero critical bugs in beta. Running initial bias checks on any AI components.",
          "Establishing test pyramid: unit > integration > e2e. GDPR checklist started — data mapping, consent flows, right-to-deletion. Need Sam's data model to complete DPA."),
         ("sales_marketing", 
-         f"I'm already thinking about our go-to-market strategy. Based on Maya's target audience data, I'll create targeted LinkedIn and email campaigns. My target is 20 beta users in Month 2. I'll start A/B testing outreach messages this week. Community building starts now — we need buzz before launch.",
+         f"I'm already thinking about our go-to-market strategy. Based on Maya's target audience data, I'll create targeted LinkedIn and email campaigns. I'll start A/B testing outreach messages right away. Community building starts now — we need buzz before launch.",
          "Designing ICP (Ideal Customer Profile) based on Maya's research. Will run 3 outreach variants simultaneously. Landing page copy needs to reflect Jordan's core value prop."),
         ("fundraising_ops", 
-         f"I've put together initial cost projections and I'm modeling our CAC:LTV ratios — targeting > 1:3. I'll track our burn rate closely and have the pitch deck ready by Month 2. Also exploring revenue models that align with this type of product. Target: secure equivalent of $1M in angel funding by Month 3.",
+         f"I've put together initial cost projections and I'm modeling our CAC:LTV ratios — targeting > 1:3. I'll track our burn rate closely and have the pitch deck ready soon. Also exploring revenue models that align with this type of product.",
          "Building 18-month financial model with 3 scenarios (conservative, base, optimistic). Revenue model analysis: SaaS subscription vs usage-based vs hybrid. Will need Taylor's acquisition cost data for unit economics."),
     ]
 
@@ -1093,15 +1129,22 @@ def _generate_plan(mission: dict, history: list) -> dict:
 
     system_prompt = f"""Create a project plan for this goal: "{goal}"
 
+IMPORTANT: Estimate timelines realistically based on actual task complexity.
+- A simple script or bug fix might take minutes or hours.
+- A small feature or report might take hours or 1-2 days.
+- A moderate project might take days to a few weeks.
+- Only large, multi-team projects should take months.
+Use the smallest appropriate time unit (minutes, hours, days, weeks).
+
 Return a JSON object with this exact structure:
 {{
   "title": "Project title",
   "summary": "1-2 sentence summary",
-  "timeline": "Estimated total timeline (e.g., '12 weeks')",
+  "timeline": "Estimated total timeline (use realistic units: '30 minutes', '4 hours', '3 days', '2 weeks', etc.)",
   "phases": [
     {{
       "name": "Phase name",
-      "duration": "e.g., 2 weeks",
+      "duration": "realistic duration (e.g., '15 minutes', '2 hours', '1 day', '1 week')",
       "tasks": ["Task 1", "Task 2", "Task 3"],
       "assigned_to": ["agent_id1", "agent_id2"],
       "deliverables": ["Deliverable 1"]
@@ -1112,7 +1155,7 @@ Return a JSON object with this exact structure:
 }}
 
 Use these agent IDs: market_researcher, product_strategist, core_engineer, integration_engineer, tester_compliance, sales_marketing, fundraising_ops.
-Create 4-6 phases. Be specific and realistic. Return ONLY valid JSON."""
+Create 2-6 phases (fewer for simpler tasks). Be specific and realistic about time. Return ONLY valid JSON."""
 
     result = _try_llm_call(system_prompt, f"Goal: {goal}")
     if result:
@@ -1126,80 +1169,62 @@ Create 4-6 phases. Be specific and realistic. Return ONLY valid JSON."""
 
     return {
         "title": f"Mission: {goal[:80]}",
-        "summary": f"A comprehensive plan to achieve: {goal}",
-        "timeline": "12-16 weeks",
+        "summary": f"A plan to achieve: {goal}",
+        "timeline": "1-3 days",
         "phases": [
             {
-                "name": "Phase 1: Research & Discovery",
-                "duration": "2 weeks",
+                "name": "Phase 1: Research & Scoping",
+                "duration": "2 hours",
                 "tasks": [
-                    "Deep market research and competitive analysis",
-                    "User persona development and need validation",
-                    "Technical feasibility assessment",
-                    "Define core value proposition"
+                    "Analyze requirements and constraints",
+                    "Research relevant approaches",
+                    "Define scope and success criteria"
                 ],
                 "assigned_to": ["market_researcher", "product_strategist"],
-                "deliverables": ["Market analysis report", "Product requirements document"]
+                "deliverables": ["Requirements summary", "Scope document"]
             },
             {
-                "name": "Phase 2: Architecture & Design",
-                "duration": "2 weeks",
+                "name": "Phase 2: Design & Planning",
+                "duration": "3 hours",
                 "tasks": [
-                    "System architecture design",
-                    "Technology stack selection",
-                    "UI/UX wireframes and prototypes",
-                    "Infrastructure setup and CI/CD pipeline"
+                    "Design solution approach",
+                    "Select tools and methods",
+                    "Create implementation plan"
                 ],
                 "assigned_to": ["core_engineer", "integration_engineer", "product_strategist"],
-                "deliverables": ["Architecture document", "Design prototypes", "Dev environment"]
+                "deliverables": ["Design document", "Implementation plan"]
             },
             {
-                "name": "Phase 3: Core Development",
-                "duration": "4 weeks",
+                "name": "Phase 3: Implementation",
+                "duration": "1 day",
                 "tasks": [
-                    "Build core product features",
-                    "API development and integrations",
-                    "Database design and implementation",
-                    "Automated test suite setup"
+                    "Build core deliverables",
+                    "Integrate components",
+                    "Test and validate"
                 ],
                 "assigned_to": ["core_engineer", "integration_engineer", "tester_compliance"],
-                "deliverables": ["Working MVP", "Test coverage report"]
+                "deliverables": ["Working deliverable", "Test results"]
             },
             {
-                "name": "Phase 4: Launch Preparation",
-                "duration": "2 weeks",
+                "name": "Phase 4: Review & Delivery",
+                "duration": "2 hours",
                 "tasks": [
-                    "Brand identity and marketing materials",
-                    "Landing page and social media presence",
-                    "Beta testing with early users",
-                    "Compliance and security audit"
+                    "Quality review",
+                    "Final adjustments",
+                    "Package and deliver"
                 ],
-                "assigned_to": ["sales_marketing", "tester_compliance", "fundraising_ops"],
-                "deliverables": ["Marketing site", "Beta feedback report", "Compliance checklist"]
-            },
-            {
-                "name": "Phase 5: Launch & Growth",
-                "duration": "2-6 weeks",
-                "tasks": [
-                    "Public launch and PR push",
-                    "User acquisition campaigns",
-                    "Performance monitoring and optimization",
-                    "Revenue model activation"
-                ],
-                "assigned_to": ["sales_marketing", "fundraising_ops", "integration_engineer"],
-                "deliverables": ["Live product", "Growth metrics dashboard", "Revenue report"]
+                "assigned_to": ["tester_compliance", "sales_marketing", "fundraising_ops"],
+                "deliverables": ["Final deliverable", "Summary report"]
             }
         ],
         "risks": [
-            "Market conditions may shift during development",
-            "Technical complexity could extend timelines",
-            "User adoption may require strategy pivots"
+            "Requirements may need clarification",
+            "Complexity could extend timelines"
         ],
         "success_metrics": [
-            "MVP launched within target timeline",
-            "Initial user base acquired (target: 100+ users in first month)",
-            "Core functionality working with 99%+ uptime",
-            "Positive user feedback (NPS > 40)"
+            "Deliverables completed within timeline",
+            "All acceptance criteria met",
+            "Quality standards satisfied"
         ]
     }
 

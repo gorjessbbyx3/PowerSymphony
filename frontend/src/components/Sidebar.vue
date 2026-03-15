@@ -51,7 +51,7 @@
 
 <script setup>
 import { RouterLink, useRouter } from 'vue-router'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import SettingsModal from './SettingsModal.vue'
 import { authState, logoutUser } from '../utils/auth'
 
