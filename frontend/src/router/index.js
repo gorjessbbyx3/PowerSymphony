@@ -31,6 +31,10 @@ const routes = [
         component: () => import('../pages/MissionOfficeView.vue')
     },
     {
+        path: '/missions/:id/office3d',
+        component: () => import('../pages/MissionOffice3DView.vue')
+    },
+    {
         path: '/activity',
         component: () => import('../pages/ActivityFeedView.vue')
     },
