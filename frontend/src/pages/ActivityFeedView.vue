@@ -56,12 +56,27 @@
                   </div>
                   <span class="event-time">{{ timeAgo(event.timestamp) }}</span>
                 </div>
-                <div class="event-body" v-if="event.detail">
+                <div class="event-body" v-if="event.detail" :class="[event.type === 'debate' ? 'event-debate' : '', event.type === 'breakthrough' ? 'event-breakthrough' : '', event.type === 'blocker' ? 'event-blocker' : '']">
                   {{ event.detail }}
                 </div>
                 <div class="event-mission" v-if="event.mission" @click="$router.push(`/missions/${event.mission.id}`)">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                   {{ event.mission.goal }}
+                </div>
+                <div v-if="event.type === 'debate'" class="event-debate-tag">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                  Debate
+                  <span v-if="event.confidence" class="confidence-chip">{{ event.confidence }}%</span>
+                </div>
+                <div v-if="event.type === 'breakthrough'" class="event-breakthrough-tag">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                  Breakthrough
+                  <span v-if="event.confidence" class="confidence-chip high">{{ event.confidence }}%</span>
+                </div>
+                <div v-if="event.type === 'blocker'" class="event-blocker-tag">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+                  Blocker
+                  <span v-if="event.blocked_by">blocked by {{ event.blocked_by }}</span>
                 </div>
                 <div v-if="event.type === 'workflow_created'" class="event-workflow-tag">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
@@ -147,6 +162,8 @@ const filters = [
   { id: 'progress', label: 'Progress' },
   { id: 'decisions', label: 'Decisions' },
   { id: 'collaboration', label: 'Collaboration' },
+  { id: 'debates', label: 'Debates' },
+  { id: 'blockers', label: 'Blockers' },
 ]
 
 const teamAgents = [
@@ -255,6 +272,9 @@ function buildSampleEvents() {
     { id: 6, type: 'collaboration', category: 'collaboration', agent: teamAgents[5], action: 'reviewed code quality', detail: 'Ran compliance checks on the generated codebase. All checks passed.', shared_with: 'Sam', timestamp: new Date(now - 1200000).toISOString(), mission: missions.value[0] || null },
     { id: 7, type: 'progress', category: 'progress', agent: teamAgents[6], action: 'drafted launch plan', detail: 'Created growth strategy with target milestones for the first 90 days.', timestamp: new Date(now - 1800000).toISOString(), mission: missions.value[0] || null },
     { id: 8, type: 'message', category: 'progress', agent: teamAgents[7], action: 'updated resource allocation', detail: 'Optimized compute allocation across active workflows for faster execution.', timestamp: new Date(now - 2400000).toISOString(), mission: missions.value[0] || null },
+    { id: 9, type: 'debate', category: 'debates', agent: teamAgents[2], action: 'started a debate on architecture', detail: 'Proposed microservices vs monolith. Debating tradeoffs with Sam on scalability vs complexity.', confidence: 72, timestamp: new Date(now - 3000000).toISOString(), mission: missions.value[0] || null },
+    { id: 10, type: 'breakthrough', category: 'progress', agent: teamAgents[1], action: 'made a breakthrough discovery', detail: 'Found a significantly larger addressable market than initially estimated. This changes our go-to-market strategy.', confidence: 92, timestamp: new Date(now - 3600000).toISOString(), mission: missions.value[0] || null },
+    { id: 11, type: 'blocker', category: 'blockers', agent: teamAgents[4], action: 'reported a blocker', detail: 'Blocked on deployment pipeline — need Sam\'s API spec before proceeding. Critical path item.', blocked_by: 'Sam', timestamp: new Date(now - 4200000).toISOString(), mission: missions.value[0] || null },
   ]
 }
 
@@ -419,6 +439,22 @@ function timeAgo(d) {
 
 .event-workflow-tag { color: #3fb950; background: rgba(63,185,80,0.1); }
 .event-collab-tag { color: #a371f7; background: rgba(163,113,247,0.1); }
+.event-debate-tag { color: #f0883e; background: rgba(240,136,62,0.1); }
+.event-breakthrough-tag { color: #f5c542; background: rgba(245,197,66,0.1); }
+.event-blocker-tag { color: #f85149; background: rgba(248,81,73,0.1); }
+
+.event-debate { border-left: 3px solid rgba(240,136,62,0.5); }
+.event-breakthrough { border-left: 3px solid rgba(245,197,66,0.5); }
+.event-blocker { border-left: 3px solid rgba(248,81,73,0.5); }
+
+.confidence-chip {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.08);
+  margin-left: 4px;
+}
+.confidence-chip.high { color: #3fb950; background: rgba(63,185,80,0.15); }
 
 /* Sidebar cards */
 .sidebar-card {
