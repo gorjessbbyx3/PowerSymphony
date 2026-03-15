@@ -17,7 +17,7 @@
           <div class="header-actions" v-if="mission">
             <button class="view-toggle-btn" @click="$router.push(`/missions/${route.params.id}/office`)">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-              Office View
+              Headquarters
             </button>
             <button
               v-if="mission.status === 'awaiting_approval'"
@@ -111,7 +111,11 @@
           <div class="input-hints">
             <span v-if="mission?.status === 'gathering_info'">Answer the team's questions, or say <strong>"Go ahead"</strong> to start planning</span>
             <span v-else-if="mission?.status === 'awaiting_approval'">Review the plan above, then say <strong>"Approve"</strong> or request changes</span>
-            <span v-else-if="mission?.status === 'executing'">Your team is working. Ask for updates anytime.</span>
+            <span v-else-if="mission?.status === 'executing'">
+              Your team is running autonomously.
+              <a class="hq-link" @click.prevent="$router.push(`/missions/${route.params.id}/office`)">Watch them in HQ</a>
+              or ask for updates here.
+            </span>
           </div>
         </div>
       </div>
@@ -686,6 +690,8 @@ function renderMarkdown(text) {
 }
 
 .input-hints strong { color: #8b949e; }
+.hq-link { color: #58a6ff; cursor: pointer; text-decoration: none; font-weight: 500; }
+.hq-link:hover { color: #79c0ff; text-decoration: underline; }
 
 .error-banner {
   color: #f85149;

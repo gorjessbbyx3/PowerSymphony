@@ -223,6 +223,16 @@ class AgentSkillManager:
             return None
         return skills.get(self._current_skill_name)
 
+    def activated_skills(self) -> List[SkillMetadata]:
+        """Return all currently activated skills (not just the last one)."""
+        skills = self._skills_by_name
+        if skills is None:
+            return []
+        return [
+            skill for name, skill in skills.items()
+            if self._activation_state.get(name)
+        ]
+
     def discovery_warnings(self) -> List[str]:
         self.discover()
         return list(self._discovery_warnings)

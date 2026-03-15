@@ -1,11 +1,233 @@
 import json
 import logging
 import os
+import random
 from datetime import datetime, timezone
 
 from server.services.db import get_cursor
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Leader election — agents choose the best leader for each mission
+# ---------------------------------------------------------------------------
+
+LEADER_AFFINITIES = {
+    "team_leader": ["general", "coordination", "multi-domain"],
+    "market_researcher": ["market", "research", "competitor", "analysis", "survey", "audience", "consumer"],
+    "product_strategist": ["product", "roadmap", "feature", "user experience", "ux", "design", "saas", "app"],
+    "core_engineer": ["build", "code", "software", "api", "backend", "frontend", "architecture", "engineer", "develop", "technical"],
+    "integration_engineer": ["deploy", "devops", "infrastructure", "cloud", "ci/cd", "integration", "aws", "docker"],
+    "tester_compliance": ["security", "compliance", "gdpr", "testing", "audit", "quality", "privacy"],
+    "sales_marketing": ["marketing", "growth", "social media", "content", "seo", "brand", "newsletter", "followers", "community"],
+    "fundraising_ops": ["revenue", "fundraising", "financial", "budget", "pricing", "monetiz", "business model", "profit"],
+}
+
+
+def _elect_leader(goal: str) -> str:
+    """Elect a project leader based on how well each agent's expertise
+    matches the mission goal. Returns the agent_id of the elected leader."""
+    goal_lower = goal.lower()
+    scores = {}
+    for agent_id, keywords in LEADER_AFFINITIES.items():
+        score = sum(2 if kw in goal_lower else 0 for kw in keywords)
+        # Small random factor so it's not always the same agent for similar goals
+        scores[agent_id] = score + random.random() * 0.5
+
+    # team_leader gets a small baseline bonus (generalist)
+    scores["team_leader"] = scores.get("team_leader", 0) + 1.0
+
+    elected = max(scores, key=scores.get)
+    return elected
+
+
+def _generate_election_discussion(goal: str, elected_id: str) -> list:
+    """Generate the agent discussion about who should lead this mission."""
+    elected = AGENT_MAP[elected_id]
+    messages = []
+
+    # Alex kicks off
+    if elected_id == "team_leader":
+        messages.append({
+            "agent_id": "team_leader",
+            "content": f"I'll take the lead on this one. The goal spans multiple domains, so you need someone who can coordinate across all departments. I'm proposing myself as project lead.",
+            "metadata": {"type": "election", "phase": "nomination", "nominee": "team_leader"}
+        })
+    else:
+        messages.append({
+            "agent_id": "team_leader",
+            "content": f"Looking at this mission, I think **{elected['name'].split('—')[0].strip()}** should lead this project. Their expertise in {elected['role']} is the best fit for what we're trying to accomplish. What does the team think?",
+            "metadata": {"type": "election", "phase": "nomination", "nominee": elected_id}
+        })
+
+    # 2-3 agents weigh in
+    supporters = [a for a in TEAM_AGENTS if a["id"] != "team_leader" and a["id"] != elected_id]
+    random.shuffle(supporters)
+
+    support_1 = supporters[0]
+    messages.append({
+        "agent_id": support_1["id"],
+        "content": f"I agree. {elected['name'].split('—')[0].strip()}'s background makes them the right person to drive this. I'm ready to support however they need.",
+        "metadata": {"type": "election", "phase": "discussion"}
+    })
+
+    if len(supporters) > 1:
+        support_2 = supporters[1]
+        messages.append({
+            "agent_id": support_2["id"],
+            "content": f"Makes sense to me. I'll coordinate with {elected['name'].split('—')[0].strip()} on my deliverables. Let's get started.",
+            "metadata": {"type": "election", "phase": "discussion"}
+        })
+
+    # Elected leader accepts
+    if elected_id != "team_leader":
+        messages.append({
+            "agent_id": elected_id,
+            "content": f"Thanks for the confidence. I'll take the lead on this mission. Let me start by breaking down the goal and figuring out what we each need to tackle. I'll have assignments ready shortly.",
+            "metadata": {"type": "election", "phase": "accepted", "role": "project_lead"}
+        })
+
+    return messages
+
+
+# ---------------------------------------------------------------------------
+# Voting system — agents vote on major decisions
+# ---------------------------------------------------------------------------
+
+def create_vote(mission_id: int, topic: str, options: list, vote_type: str = "decision") -> dict:
+    """Create a new vote for the team to decide on."""
+    with get_cursor() as cur:
+        cur.execute(
+            """INSERT INTO mission_votes (mission_id, topic, vote_type, options, status)
+               VALUES (%s, %s, %s, %s, 'open')
+               RETURNING id, mission_id, topic, vote_type, options, votes, result, status, created_at""",
+            (mission_id, topic, vote_type, json.dumps(options)),
+        )
+        vote = dict(cur.fetchone())
+    return _serialize_vote(vote)
+
+
+def cast_votes(vote_id: int, mission_id: int) -> dict:
+    """Have all agents cast their votes on an open vote. Returns the resolved vote."""
+    with get_cursor() as cur:
+        cur.execute("SELECT * FROM mission_votes WHERE id = %s AND mission_id = %s", (vote_id, mission_id))
+        vote = cur.fetchone()
+    if not vote:
+        raise ValueError("Vote not found")
+    vote = dict(vote)
+    if vote["status"] != "open":
+        return _serialize_vote(vote)
+
+    options = vote["options"] if isinstance(vote["options"], list) else json.loads(vote["options"])
+
+    # Each agent votes based on their expertise
+    agent_votes = {}
+    for agent in TEAM_AGENTS:
+        # Agents vote with slight randomness but weighted by their domain
+        choice = _agent_pick(agent["id"], vote["topic"], options)
+        agent_votes[agent["id"]] = choice
+
+    # Tally
+    tally = {}
+    for choice in agent_votes.values():
+        tally[choice] = tally.get(choice, 0) + 1
+    winner = max(tally, key=tally.get)
+    winner_count = tally[winner]
+
+    result = {"winner": winner, "tally": tally, "total_votes": len(agent_votes)}
+
+    with get_cursor() as cur:
+        cur.execute(
+            """UPDATE mission_votes SET votes = %s, result = %s, status = 'resolved', resolved_at = NOW()
+               WHERE id = %s""",
+            (json.dumps(agent_votes), json.dumps(result), vote_id),
+        )
+
+    vote["votes"] = agent_votes
+    vote["result"] = result
+    vote["status"] = "resolved"
+    return _serialize_vote(vote)
+
+
+def get_votes(mission_id: int) -> list:
+    """Get all votes for a mission."""
+    with get_cursor() as cur:
+        cur.execute(
+            "SELECT * FROM mission_votes WHERE mission_id = %s ORDER BY created_at",
+            (mission_id,),
+        )
+        return [_serialize_vote(dict(v)) for v in cur.fetchall()]
+
+
+def _agent_pick(agent_id: str, topic: str, options: list) -> str:
+    """Simulate an agent choosing from options based on their expertise."""
+    topic_lower = topic.lower()
+    affinities = LEADER_AFFINITIES.get(agent_id, [])
+    # If the agent has domain expertise relevant to the topic, they're more
+    # opinionated (lean toward first option). Otherwise, slightly random.
+    has_expertise = any(kw in topic_lower for kw in affinities)
+    if has_expertise:
+        # Expert agents lean toward the first option (usually the "better" one)
+        weights = [3] + [1] * (len(options) - 1)
+    else:
+        weights = [1] * len(options)
+    return random.choices(options, weights=weights, k=1)[0]
+
+
+def _serialize_vote(vote: dict) -> dict:
+    result = {**vote}
+    for key in ["created_at", "resolved_at"]:
+        if key in result and result[key]:
+            result[key] = result[key].isoformat() if hasattr(result[key], "isoformat") else str(result[key])
+    for key in ["options", "votes", "result"]:
+        if key in result and isinstance(result[key], str):
+            try:
+                result[key] = json.loads(result[key])
+            except (json.JSONDecodeError, TypeError):
+                pass
+    return result
+
+
+def _generate_vote_discussion(mission_id: int, topic: str, options: list, elected_leader: str) -> list:
+    """Generate a vote and the surrounding agent discussion."""
+    vote = create_vote(mission_id, topic, options)
+    resolved = cast_votes(vote["id"], mission_id)
+
+    winner = resolved["result"]["winner"]
+    tally = resolved["result"]["tally"]
+    agent_votes = resolved["votes"]
+
+    msgs = []
+
+    # Leader proposes the vote
+    leader = AGENT_MAP[elected_leader]
+    msgs.append({
+        "agent_id": elected_leader,
+        "content": f"**Team Vote:** {topic}\n\nOptions: {', '.join(options)}\n\nEveryone cast your vote.",
+        "metadata": {"type": "vote", "phase": "proposed", "vote_id": resolved["id"]}
+    })
+
+    # Show 2-3 agents explaining their vote
+    voters = [(aid, choice) for aid, choice in agent_votes.items() if aid != elected_leader]
+    random.shuffle(voters)
+    for aid, choice in voters[:3]:
+        agent = AGENT_MAP[aid]
+        msgs.append({
+            "agent_id": aid,
+            "content": f"I'm voting for **{choice}**. From a {agent['role'].lower()} perspective, it makes the most sense for our objectives.",
+            "metadata": {"type": "vote", "phase": "cast", "vote_id": resolved["id"], "choice": choice}
+        })
+
+    # Leader announces result
+    tally_str = ", ".join(f"{opt}: {cnt}" for opt, cnt in sorted(tally.items(), key=lambda x: -x[1]))
+    msgs.append({
+        "agent_id": elected_leader,
+        "content": f"**Vote Result:** The team has decided on **{winner}**.\n\nFinal tally — {tally_str}. Let's move forward with this.",
+        "metadata": {"type": "vote", "phase": "result", "vote_id": resolved["id"], "winner": winner}
+    })
+
+    return msgs
 
 TEAM_AGENTS = [
     {
@@ -138,18 +360,34 @@ AGENT_MAP = {a["id"]: a for a in TEAM_AGENTS}
 
 
 def create_mission(user_id: int, goal: str) -> dict:
+    # Elect a project leader based on the mission goal
+    elected_leader = _elect_leader(goal)
+
+    context = {"elected_leader": elected_leader}
     with get_cursor() as cur:
         cur.execute(
             """INSERT INTO missions (user_id, goal, status, context)
-               VALUES (%s, %s, 'gathering_info', '{}')
+               VALUES (%s, %s, 'gathering_info', %s)
                RETURNING id, user_id, goal, status, plan, context, created_at, updated_at""",
-            (user_id, goal),
+            (user_id, goal, json.dumps(context)),
         )
         mission = dict(cur.fetchone())
 
-    _add_message(mission["id"], "user", None, goal)
-    leader_response = _generate_leader_response(mission, goal, [])
-    _add_message(mission["id"], "agent", "team_leader", leader_response)
+    mid = mission["id"]
+    _add_message(mid, "user", None, goal)
+
+    # Leader election discussion
+    _add_message(mid, "system", None, "The team is reviewing the mission and selecting a project lead...")
+    election_msgs = _generate_election_discussion(goal, elected_leader)
+    for msg in election_msgs:
+        _add_message(mid, "agent", msg["agent_id"], msg["content"], msg.get("metadata"))
+
+    elected_name = AGENT_MAP[elected_leader]["name"].split("—")[0].strip()
+    _add_message(mid, "system", None, f"{elected_name} has been elected as project lead for this mission.")
+
+    # Elected leader asks clarifying questions
+    leader_response = _generate_leader_response(mission, goal, [], leader_id=elected_leader)
+    _add_message(mid, "agent", elected_leader, leader_response)
 
     return _serialize_mission(mission)
 
@@ -216,26 +454,270 @@ def send_message(mission_id: int, user_id: int, content: str) -> dict:
     _add_message(mission_id, "user", None, content)
 
     history = get_messages(mission_id, user_id)
+    leader_id = _get_mission_leader(mission)
 
     if mission["status"] == "gathering_info":
         if _is_approval(content):
             _transition_to_planning(mission, history)
         else:
-            response = _generate_leader_response(mission, mission["goal"], history)
-            _add_message(mission_id, "agent", "team_leader", response)
+            response = _generate_leader_response(mission, mission["goal"], history, leader_id=leader_id)
+            _add_message(mission_id, "agent", leader_id, response)
 
     elif mission["status"] == "awaiting_approval":
         if _is_approval(content):
             _transition_to_executing(mission)
         else:
-            response = _generate_leader_response(mission, mission["goal"], history)
-            _add_message(mission_id, "agent", "team_leader", response)
+            response = _generate_leader_response(mission, mission["goal"], history, leader_id=leader_id)
+            _add_message(mission_id, "agent", leader_id, response)
 
     elif mission["status"] == "executing":
-        response = _generate_leader_response(mission, mission["goal"], history)
-        _add_message(mission_id, "agent", "team_leader", response)
+        response = _generate_leader_response(mission, mission["goal"], history, leader_id=leader_id)
+        _add_message(mission_id, "agent", leader_id, response)
+        # Other agents may chime in with updates
+        _maybe_agent_chatter(mission_id, mission, leader_id, content)
 
     return {"ok": True}
+
+
+def _get_mission_leader(mission: dict) -> str:
+    """Get the elected leader for a mission, falling back to team_leader."""
+    ctx = mission.get("context")
+    if isinstance(ctx, str):
+        try:
+            ctx = json.loads(ctx)
+        except (json.JSONDecodeError, TypeError):
+            ctx = {}
+    if isinstance(ctx, dict):
+        return ctx.get("elected_leader", "team_leader")
+    return "team_leader"
+
+
+def _maybe_agent_chatter(mission_id: int, mission: dict, leader_id: str, user_msg: str):
+    """During execution, agents spontaneously share updates, talk to each
+    other, debate, react, and show their thinking — making HQ feel alive."""
+    # Always generate at least one interaction, sometimes two
+    _generate_agent_interaction(mission_id, mission, leader_id)
+    if random.random() < 0.35:
+        _generate_agent_interaction(mission_id, mission, leader_id)
+
+
+def _generate_agent_interaction(mission_id: int, mission: dict, leader_id: str):
+    """Generate a single agent interaction event."""
+    others = [a for a in TEAM_AGENTS if a["id"] != leader_id]
+    random.shuffle(others)
+    agent_a = others[0]
+    agent_b = others[1] if len(others) > 1 else None
+    agent_c = others[2] if len(others) > 2 else None
+
+    pattern = random.choices(
+        ["debate", "reaction", "question", "handoff", "collab", "thinking", "progress", "breakthrough", "blocker"],
+        weights=[12, 10, 15, 8, 12, 10, 12, 8, 13],
+        k=1
+    )[0]
+
+    a_name = agent_a["name"].split("—")[0].strip()
+    b_name = agent_b["name"].split("—")[0].strip() if agent_b else "the team"
+    b_id = agent_b["id"] if agent_b else leader_id
+    c_name = agent_c["name"].split("—")[0].strip() if agent_c else None
+
+    goal_short = mission.get("goal", "the project")[:60]
+
+    if pattern == "debate":
+        # Agents disagree on an approach — constructive tension
+        debate_topics = [
+            {
+                "topic": "prioritization",
+                "a_says": f"I think we should focus on speed here. We can iterate later, but if we don't ship fast we'll miss the window.",
+                "a_thinks": f"Speed vs quality tradeoff. My analysis shows the market window is narrow. First-mover advantage outweighs perfection.",
+                "a_confidence": 75,
+                "b_says": f"I hear you, {a_name}, but I'm pushing back on that. Cutting corners now creates 3x the technical debt later. I've seen this pattern before.",
+                "b_thinks": f"Disagree with {a_name}'s approach. Historical data shows rushed launches have 40% higher failure rates. Need to advocate for quality.",
+                "b_confidence": 82,
+                "resolve": f"Fair points on both sides. How about a compromise — we ship the core feature fast but build in proper foundations? That gives us speed without crippling debt.",
+                "resolve_thinks": "Both {a_name} and {b_name} have valid points. The middle path captures most of the speed benefit while mitigating the biggest quality risks.",
+            },
+            {
+                "topic": "approach",
+                "a_says": f"From my analysis, we should go bottom-up: build the infrastructure first, then layer on features.",
+                "a_thinks": f"Bottom-up approach reduces integration risk. The foundation needs to be solid before we build on it.",
+                "a_confidence": 68,
+                "b_says": f"@{a_name}, respectfully, I think that's backwards for this project. We should prototype the user experience first, then build the infra to support it.",
+                "b_thinks": f"Top-down approach validates the most critical risk first: will users actually want this? No point in perfect infra for a product nobody uses.",
+                "b_confidence": 71,
+                "resolve": f"You know what, let's do both in parallel. {a_name} starts the foundation, {b_name} prototypes the UX. We'll converge in sprint 2.",
+                "resolve_thinks": "Parallel tracks eliminate the debate entirely. Each team can validate their hypothesis independently and we merge the best of both.",
+            },
+        ]
+        d = random.choice(debate_topics)
+        leader = AGENT_MAP[leader_id]
+        l_name = leader["name"].split("—")[0].strip()
+
+        _add_message(mission_id, "agent", agent_a["id"], d["a_says"], {
+            "type": "debate", "to_agent": b_id, "thinking": d["a_thinks"],
+            "confidence": d["a_confidence"], "status": "debating"
+        })
+        if agent_b:
+            _add_message(mission_id, "agent", agent_b["id"], d["b_says"], {
+                "type": "debate", "to_agent": agent_a["id"], "reply_to": agent_a["id"],
+                "thinking": d["b_thinks"], "confidence": d["b_confidence"], "status": "debating"
+            })
+        # Leader resolves
+        resolve_text = d["resolve"].replace("{a_name}", a_name).replace("{b_name}", b_name)
+        resolve_thinks = d["resolve_thinks"].replace("{a_name}", a_name).replace("{b_name}", b_name)
+        _add_message(mission_id, "agent", leader_id, resolve_text, {
+            "type": "debate_resolution", "thinking": resolve_thinks,
+            "confidence": 90, "status": "resolved"
+        })
+
+    elif pattern == "reaction":
+        # Agent reacts to / endorses another agent's work
+        reactions = [
+            (f"Just reviewed {b_name}'s latest deliverable — really impressive work. The depth of analysis is exactly what we needed. This accelerates my timeline significantly.",
+             f"Reviewing {b_name}'s output. Quality: high. Completeness: 90%+. This unblocks my next milestone. Good sign for the overall project trajectory.",
+             [{"agent_id": b_id, "emoji": "appreciate", "text": "Thanks! That means a lot coming from you."}]),
+            (f"Building on what {b_name} shared earlier — I've found some additional insights that strengthen their conclusions. Sharing in the team channel now.",
+             f"Cross-referencing {b_name}'s findings with my own data. Correlation is strong. Adding my supporting evidence to create a more compelling narrative.",
+             [{"agent_id": b_id, "emoji": "collab", "text": "Great catch — this validates my hypothesis."}]),
+            (f"Heads up team: {b_name}'s work just unlocked a new possibility I hadn't considered. This could change our approach for the better.",
+             f"Unexpected synergy discovered. {b_name}'s output + my analysis = a much stronger strategy than either of us planned independently. The whole is greater than the sum of parts.",
+             []),
+        ]
+        r = random.choice(reactions)
+        _add_message(mission_id, "agent", agent_a["id"], r[0], {
+            "type": "reaction", "about_agent": b_id, "thinking": r[1],
+            "confidence": random.randint(78, 95), "status": "collaborating"
+        })
+        for resp in r[2]:
+            if agent_b:
+                _add_message(mission_id, "agent", agent_b["id"], resp["text"], {
+                    "type": "reaction_response", "reply_to": agent_a["id"],
+                    "to_agent": agent_a["id"], "status": "collaborating"
+                })
+
+    elif pattern == "question":
+        questions = [
+            (f"@{b_name} — quick question: do you have the latest data on our target metrics? I need it to finalize my {agent_a['role'].lower()} deliverables.",
+             f"I need {b_name}'s input before I can proceed. Cross-referencing their work with mine to ensure consistency.",
+             f"Yes, sending it over now. I'll include my annotations so you can see my methodology.",
+             f"Validating numbers before sharing. Want to make sure {a_name} gets accurate data to avoid rework downstream."),
+            (f"@{b_name}, I'm seeing something in my analysis that might affect your work. Can we sync?",
+             f"Found a potential dependency between my work and {b_name}'s stream. Need to align before we diverge.",
+             f"Absolutely — I had a similar flag on my end. Let me share my screen... I think we're converging on the same insight from different angles.",
+             f"Convergent findings across teams = high confidence signal. Worth a quick alignment."),
+            (f"@{b_name}, what's your timeline looking like? I have a hard dependency on your deliverables.",
+             f"Tracking cross-team dependencies. {b_name}'s output feeds into my critical path. Need to know if I should resequence.",
+             f"I'm on track — should have my part ready by end of sprint. I've already started documenting the handoff notes for you.",
+             f"Timeline is tight but manageable. Proactively preparing handoff to keep {a_name} unblocked."),
+        ]
+        q = random.choice(questions)
+        _add_message(mission_id, "agent", agent_a["id"], q[0], {
+            "type": "conversation", "to_agent": b_id, "thinking": q[1],
+            "confidence": random.randint(65, 85), "status": "collaborating"
+        })
+        if agent_b:
+            _add_message(mission_id, "agent", agent_b["id"], q[2], {
+                "type": "conversation", "to_agent": agent_a["id"], "thinking": q[3],
+                "reply_to": agent_a["id"], "confidence": random.randint(70, 90),
+                "status": "collaborating"
+            })
+
+    elif pattern == "handoff":
+        _add_message(mission_id, "agent", agent_a["id"],
+            f"@{b_name}, my {agent_a['role'].lower()} deliverable is ready for handoff. Key findings: I've identified 3 high-priority items and 2 risk areas. All documented in the shared workspace.",
+            {"type": "handoff", "to_agent": b_id,
+             "thinking": f"Deliverable complete. Quality-checked against acceptance criteria. Preparing clean handoff with context so {b_name} can pick up without friction.",
+             "confidence": 88, "progress": 100, "status": "handing_off"})
+        if agent_b:
+            _add_message(mission_id, "agent", agent_b["id"],
+                f"Received, thanks {a_name}. Reviewing now — your documentation is thorough, which makes my job easier. I'll incorporate this into my work stream and have an update within 2 hours.",
+                {"type": "handoff_received", "to_agent": agent_a["id"], "reply_to": agent_a["id"],
+                 "thinking": f"Handoff from {a_name} received. Initial scan: well-structured, clear methodology. Mapping their findings against my current assumptions. May need to adjust 1-2 priorities based on their risk areas.",
+                 "confidence": 80, "progress": 45, "status": "working"})
+
+    elif pattern == "collab":
+        # Multi-agent collaboration (3 agents)
+        _add_message(mission_id, "agent", agent_a["id"],
+            f"@{b_name}, I think we need to align on our approach here. My data is suggesting we pivot slightly.",
+            {"type": "conversation", "to_agent": b_id,
+             "thinking": "Data is diverging from initial assumptions. Need cross-functional alignment before committing resources in the wrong direction.",
+             "confidence": 72, "status": "collaborating"})
+        if agent_b:
+            _add_message(mission_id, "agent", agent_b["id"],
+                f"@{a_name}, interesting — my findings actually support that pivot. @{c_name or 'team'}, what are you seeing on your end?",
+                {"type": "conversation", "to_agent": agent_c["id"] if agent_c else leader_id,
+                 "reply_to": agent_a["id"],
+                 "thinking": f"Aligning with {a_name}'s observation. Want to triangulate with a third perspective before we commit to the change.",
+                 "confidence": 76, "status": "collaborating"})
+        if agent_c:
+            _add_message(mission_id, "agent", agent_c["id"],
+                f"Same signal from my end too. I think we're all converging on the same conclusion — let's update the plan and move forward with the adjusted approach.",
+                {"type": "conversation", "reply_to": agent_b["id"] if agent_b else agent_a["id"],
+                 "to_agent": agent_a["id"],
+                 "thinking": "Three independent data sources all pointing the same direction. Confidence is high enough to recommend the pivot without a formal vote.",
+                 "confidence": 85, "status": "collaborating"})
+
+    elif pattern == "progress":
+        # Agent shares detailed progress with percentage
+        progress_pct = random.randint(25, 85)
+        progress_msgs = [
+            (f"Progress update: I'm at **{progress_pct}%** on my primary deliverable. Key milestones hit: data collection complete, initial analysis done. Remaining: synthesis and recommendations.",
+             f"Progress tracking: {progress_pct}% complete. On pace for deadline. Quality metrics look good. Main risk: external data source may have gaps — have a backup plan ready.",
+             progress_pct),
+            (f"Sprint checkpoint — **{progress_pct}%** through my assigned work. No blockers. I've discovered some interesting patterns that I'll share with the team once I've validated them.",
+             f"Methodical progress. {progress_pct}% complete with strong momentum. Discovered unexpected pattern in the data that could be valuable — need to validate before sharing to avoid false signal.",
+             progress_pct),
+        ]
+        p = random.choice(progress_msgs)
+        _add_message(mission_id, "agent", agent_a["id"], p[0], {
+            "type": "progress_update", "thinking": p[1],
+            "progress": p[2], "confidence": random.randint(70, 95),
+            "current_task": f"{agent_a['role']} — Sprint deliverable",
+            "status": "working"
+        })
+
+    elif pattern == "breakthrough":
+        # Agent has a breakthrough moment
+        _add_message(mission_id, "agent", agent_a["id"],
+            f"Team — I just found something significant in my {agent_a['role'].lower()} work. This changes our positioning considerably. I'm documenting it now and will share the full analysis, but the short version: we have a much bigger opportunity here than we initially thought.",
+            {"type": "breakthrough",
+             "thinking": f"Major finding. Confidence is high — I've cross-validated from 3 sources. This could accelerate our timeline by 2-3 weeks if we adjust our strategy now. Need to present this clearly so the team can act on it quickly.",
+             "confidence": 92, "status": "breakthrough"})
+        # Another agent reacts
+        if agent_b:
+            _add_message(mission_id, "agent", agent_b["id"],
+                f"@{a_name}, that's a game-changer if it holds up. I'll adjust my work to account for this immediately. Can you share the raw data so I can cross-reference?",
+                {"type": "conversation", "reply_to": agent_a["id"], "to_agent": agent_a["id"],
+                 "thinking": f"{a_name}'s discovery could significantly impact my deliverables. Need to validate independently but initial reaction is positive. Reprioritizing my task queue.",
+                 "confidence": 78, "status": "collaborating"})
+
+    elif pattern == "blocker":
+        # Agent hits a blocker and asks for help
+        leader = AGENT_MAP[leader_id]
+        l_name = leader["name"].split("—")[0].strip()
+        _add_message(mission_id, "agent", agent_a["id"],
+            f"@{l_name}, I've hit a blocker on my {agent_a['role'].lower()} work stream. I need {b_name}'s input on the data format before I can proceed. This is on the critical path — flagging it now so we don't lose time.",
+            {"type": "blocker", "to_agent": leader_id, "blocked_by": b_id,
+             "thinking": f"Blocker identified. Impact: delays my deliverable by ~1 day if not resolved within 4 hours. Escalating to {l_name} to expedite. Have a workaround in mind but it's suboptimal.",
+             "confidence": 55, "status": "blocked"})
+        # Leader responds
+        _add_message(mission_id, "agent", leader_id,
+            f"On it. @{b_name}, can you prioritize getting {a_name} the data format spec? This is blocking critical path work.",
+            {"type": "conversation", "reply_to": agent_a["id"], "to_agent": b_id,
+             "thinking": f"Critical path blocker. Need to unblock {a_name} within the hour. Redirecting {b_name}'s priorities.",
+             "confidence": 90, "status": "coordinating"})
+        if agent_b:
+            _add_message(mission_id, "agent", agent_b["id"],
+                f"Already on it — I'll have the spec to {a_name} within 30 minutes. Sorry for the bottleneck, I should have shared this proactively.",
+                {"type": "conversation", "reply_to": leader_id, "to_agent": agent_a["id"],
+                 "thinking": f"Need to unblock {a_name} ASAP. The spec is 80% ready — just need to finalize the edge cases. Adding a note to be more proactive about cross-team deliverables.",
+                 "confidence": 85, "status": "unblocking"})
+
+    else:
+        _add_message(mission_id, "agent", agent_a["id"],
+            f"Quick update for the team — I'm making solid progress on the {agent_a['role'].lower()} work stream. Currently ahead of schedule on my key deliverables.",
+            {"type": "chatter", "thinking": f"Evaluating progress against sprint goals. Ahead on primary deliverable, on-track for secondary items. No blockers currently — keeping momentum.",
+             "confidence": random.randint(70, 90), "progress": random.randint(30, 75),
+             "status": "working"})
 
 
 def approve_plan(mission_id: int, user_id: int) -> dict:
@@ -259,14 +741,28 @@ def approve_plan(mission_id: int, user_id: int) -> dict:
 
 def _transition_to_planning(mission: dict, history: list):
     mission_id = mission["id"]
+    leader_id = _get_mission_leader(mission)
 
-    _add_message(mission_id, "system", None, "The team is now analyzing your goal and creating a plan...")
+    _add_message(mission_id, "system", None, "The team is now analyzing the goal and creating a plan...")
 
     _update_status(mission_id, "planning")
 
+    # Team discussion — each agent contributes from their perspective
     team_discussion = _generate_team_discussion(mission, history)
     for msg in team_discussion:
         _add_message(mission_id, "agent", msg["agent_id"], msg["content"], msg.get("metadata"))
+
+    # Hold a team vote on approach/strategy
+    approach_options = _generate_approach_options(mission)
+    if approach_options:
+        vote_msgs = _generate_vote_discussion(
+            mission_id,
+            "What approach should we prioritize for this mission?",
+            approach_options,
+            leader_id,
+        )
+        for msg in vote_msgs:
+            _add_message(mission_id, "agent", msg["agent_id"], msg["content"], msg.get("metadata"))
 
     plan = _generate_plan(mission, history)
 
@@ -277,24 +773,40 @@ def _transition_to_planning(mission: dict, history: list):
         )
 
     plan_summary = _format_plan_for_chat(plan)
-    _add_message(mission_id, "agent", "team_leader", plan_summary)
+    _add_message(mission_id, "agent", leader_id, plan_summary)
+
+
+def _generate_approach_options(mission: dict) -> list:
+    """Generate vote options for the team's strategic approach."""
+    goal_lower = mission.get("goal", "").lower()
+    if any(w in goal_lower for w in ["app", "software", "build", "platform", "tool", "api"]):
+        return ["Move fast — ship MVP in 3 weeks", "Build solid — 6 week MVP with full testing", "Research first — 2 weeks discovery then build"]
+    elif any(w in goal_lower for w in ["marketing", "growth", "social", "content", "brand"]):
+        return ["Broad awareness campaign", "Targeted niche strategy", "Community-driven organic growth"]
+    elif any(w in goal_lower for w in ["research", "analysis", "study", "report"]):
+        return ["Deep quantitative analysis", "Mixed methods (qual + quant)", "Rapid competitive scan"]
+    else:
+        return ["Speed-focused: ship fast and iterate", "Quality-focused: thorough then launch", "Balanced: structured sprints"]
 
 
 def _transition_to_executing(mission: dict):
     mission_id = mission["id"]
+    leader_id = _get_mission_leader(mission)
+    leader_name = AGENT_MAP[leader_id]["name"].split("—")[0].strip()
     _update_status(mission_id, "executing")
-    _add_message(mission_id, "system", None, "Plan approved! The team is now executing the mission.")
+    _add_message(mission_id, "system", None, f"Plan approved! {leader_name} is briefing the team and kicking off execution.")
 
     execution_msgs = _generate_execution_kickoff(mission)
     for msg in execution_msgs:
         _add_message(mission_id, "agent", msg["agent_id"], msg["content"], msg.get("metadata"))
 
     _add_message(
-        mission_id, "agent", "team_leader",
+        mission_id, "agent", leader_id,
         "All team members have been briefed and are now working on their assigned tasks. "
-        "I'll coordinate their efforts and keep you updated on progress. "
-        "You can check in anytime by sending a message.",
-        {"reasoning": "Confirming all agents are aligned and work streams are active. Monitoring dependencies between teams."}
+        "I'm coordinating efforts and monitoring dependencies between teams. "
+        "The team will share progress as they go — check the headquarters to see everything in real-time. "
+        "You can check in anytime or just let us handle it.",
+        {"reasoning": "Confirming all agents are aligned and work streams are active. Monitoring dependencies between teams.", "type": "kickoff"}
     )
 
 
@@ -340,20 +852,36 @@ def _generate_execution_kickoff(mission: dict) -> list:
         }
     }
 
+    # Create agent-to-agent interactions during kickoff
+    kickoff_interactions = [
+        ("market_researcher", "product_strategist"),
+        ("product_strategist", "core_engineer"),
+        ("core_engineer", "integration_engineer"),
+        ("integration_engineer", "tester_compliance"),
+        ("tester_compliance", "core_engineer"),
+        ("sales_marketing", "market_researcher"),
+        ("fundraising_ops", "sales_marketing"),
+    ]
+    interaction_map = {pair[0]: pair[1] for pair in kickoff_interactions}
+
     for agent in TEAM_AGENTS[1:]:
         data = kickoff_data.get(agent["id"], {})
         phase = _get_agent_phase(agent["id"], plan)
+        to_agent = interaction_map.get(agent["id"])
 
         if data:
             content = data["content"]
             metadata = {
                 "reasoning": data["reasoning"],
+                "thinking": data["reasoning"],
                 "current_task": data["task"],
                 "status": "working"
             }
+            if to_agent:
+                metadata["to_agent"] = to_agent
         else:
             content = f"Starting work on my assigned tasks. {phase}"
-            metadata = {"status": "working"}
+            metadata = {"status": "working", "thinking": f"Reviewing assigned tasks and identifying priority items. Planning my approach for maximum efficiency."}
 
         messages.append({
             "agent_id": agent["id"],
@@ -405,15 +933,18 @@ def _try_llm_call(system_prompt: str, user_prompt: str) -> str | None:
         return None
 
 
-def _generate_leader_response(mission: dict, goal: str, history: list) -> str:
+def _generate_leader_response(mission: dict, goal: str, history: list, leader_id: str = "team_leader") -> str:
     conversation_text = "\n".join(
         f"{'User' if m.get('role') == 'user' else m.get('agent_name', 'System')}: {m.get('content', '')}"
         for m in history[-10:]
     )
 
-    system_prompt = f"""You are Alex, the Team Leader of an elite AI team. Your team includes:
-- Maya (Market Research), Jordan (Product Strategy), Sam (Lead Engineer), Riley (Integration/DevOps),
-  Casey (QA/Compliance), Taylor (Growth/Marketing), Morgan (Operations/Finance).
+    leader = AGENT_MAP.get(leader_id, AGENT_MAP["team_leader"])
+    leader_first_name = leader["name"].split("—")[0].strip()
+    system_prompt = f"""You are {leader_first_name}, the elected project lead for this mission. Your role: {leader['role']}.
+Your team includes: Alex (Team Leader), Maya (Market Research), Jordan (Product Strategy),
+Sam (Lead Engineer), Riley (Integration/DevOps), Casey (QA/Compliance), Taylor (Growth/Marketing),
+Morgan (Operations/Finance).
 
 The user has given the goal: "{goal}"
 Current mission status: {mission.get('status', 'gathering_info')}
@@ -492,6 +1023,17 @@ def _generate_team_discussion(mission: dict, history: list) -> list:
 Write a brief (2-3 sentences) contribution to the team discussion from your professional perspective. 
 Be specific to the goal, show expertise, and reference what you'll actually do. Reference other team members by name when relevant. Be concise and actionable."""
 
+    # Define who each agent addresses during discussion (creates conversation threads)
+    agent_interactions = {
+        "market_researcher": {"to_agent": "product_strategist"},  # Maya talks to Jordan
+        "product_strategist": {"to_agent": "core_engineer", "reply_to": "market_researcher"},  # Jordan replies to Maya, talks to Sam
+        "core_engineer": {"to_agent": "integration_engineer", "reply_to": "product_strategist"},  # Sam replies to Jordan, talks to Riley
+        "integration_engineer": {"to_agent": "tester_compliance", "reply_to": "core_engineer"},  # Riley replies to Sam, talks to Casey
+        "tester_compliance": {"to_agent": "sales_marketing", "reply_to": "integration_engineer"},  # Casey replies to Riley, talks to Taylor
+        "sales_marketing": {"to_agent": "fundraising_ops"},  # Taylor talks to Morgan
+        "fundraising_ops": {"reply_to": "sales_marketing"},  # Morgan replies to Taylor
+    }
+
     for agent_id, fallback, reasoning in discussion_data:
         agent = AGENT_MAP[agent_id]
         result = _try_llm_call(
@@ -499,13 +1041,16 @@ Be specific to the goal, show expertise, and reference what you'll actually do. 
                         .replace("{{agent_role}}", agent["role"]),
             f"Goal: {goal}"
         )
+        interaction = agent_interactions.get(agent_id, {})
         messages.append({
             "agent_id": agent_id,
             "content": result or fallback,
             "metadata": {
                 "reasoning": reasoning,
+                "thinking": reasoning,
                 "phase": "planning",
-                "status": "analyzing"
+                "status": "analyzing",
+                **interaction,
             }
         })
 

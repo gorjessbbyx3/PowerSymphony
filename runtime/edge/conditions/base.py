@@ -138,6 +138,16 @@ class EdgeConditionManager(Generic[TConfig], ABC):
             log_manager=log_manager,
         )
 
+        # --- Set the trigger flag BEFORE data transfer ---
+        # The trigger must be set independently of whether data is carried or
+        # whether a payload processor drops the message.  Previously the early
+        # return inside the carry_data branch (when the processor returned None)
+        # would skip the trigger assignment, silently preventing the successor
+        # node from ever executing.
+        if edge_link.trigger:
+            edge_link.triggered = True
+            log_manager.debug(f"Edge {from_node.id} -> {target_node.id} triggered")
+
         if edge_link.carry_data:
             payload = self._prepare_payload_for_target(source_result, from_node, target_node, edge_link.keep_message)
             payload = self.transform_payload(
@@ -152,14 +162,14 @@ class EdgeConditionManager(Generic[TConfig], ABC):
                     f"Payload processor dropped message for edge {from_node.id} -> {target_node.id}"
                 )
                 return
-            
+
             # Tag message with dynamic edge info for later processing
             if edge_link.dynamic_config is not None:
                 metadata = dict(payload.metadata)
                 metadata["_from_dynamic_edge"] = True
                 metadata["_dynamic_edge_source"] = from_node.id
                 payload.metadata = metadata
-            
+
             target_node.append_input(payload)
             log_manager.debug(
                 f"Data passed from {from_node.id} to {target_node.id}'s input queue "
@@ -169,10 +179,6 @@ class EdgeConditionManager(Generic[TConfig], ABC):
             log_manager.debug(
                 f"Edge {from_node.id} -> {target_node.id} does not carry data, skipping data transfer"
             )
-
-        if edge_link.trigger:
-            edge_link.triggered = True
-            log_manager.debug(f"Edge {from_node.id} -> {target_node.id} triggered")
 
     def _payload_to_text(self, payload: Any) -> str:
         if isinstance(payload, Message):

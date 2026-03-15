@@ -779,31 +779,34 @@ class AgentNodeExecutor(NodeExecutor):
             return messages, events
 
         # --- Skill allow-list check ---
-        active_skill = skill_manager.active_skill() if skill_manager is not None else None
-        if (
-            active_skill is not None
-            and active_skill.allowed_tools
-            and execution_name not in active_skill.allowed_tools
-        ):
-            error_msg = (
-                f"Tool '{tool_name}' is not allowed by active skill "
-                f"'{active_skill.name}'. Allowed tools: {list(active_skill.allowed_tools)}"
-            )
-            self.log_manager.record_tool_call(
-                node.id, tool_name, False, None, {"error": error_msg, "arguments": arguments}, CallStage.AFTER,
-            )
-            messages.append(Message(
-                role=MessageRole.TOOL,
-                content=f"Error: {error_msg}",
-                tool_call_id=tool_call.id,
-                metadata={"tool_name": tool_name, "source": node.id},
-            ))
-            events.append(FunctionCallOutputEvent(
-                call_id=tool_call.id or tool_call.function_name or "tool_call",
-                function_name=tool_call.function_name,
-                output_text=f"error: {error_msg}",
-            ))
-            return messages, events
+        # Check against ALL activated skills, not just the last one.
+        # A tool call is blocked if ANY activated skill with a non-empty
+        # allowed_tools list does not include the requested tool.
+        if skill_manager is not None:
+            for active_skill in skill_manager.activated_skills():
+                if (
+                    active_skill.allowed_tools
+                    and execution_name not in active_skill.allowed_tools
+                ):
+                    error_msg = (
+                        f"Tool '{tool_name}' is not allowed by active skill "
+                        f"'{active_skill.name}'. Allowed tools: {list(active_skill.allowed_tools)}"
+                    )
+                    self.log_manager.record_tool_call(
+                        node.id, tool_name, False, None, {"error": error_msg, "arguments": arguments}, CallStage.AFTER,
+                    )
+                    messages.append(Message(
+                        role=MessageRole.TOOL,
+                        content=f"Error: {error_msg}",
+                        tool_call_id=tool_call.id,
+                        metadata={"tool_name": tool_name, "source": node.id},
+                    ))
+                    events.append(FunctionCallOutputEvent(
+                        call_id=tool_call.id or tool_call.function_name or "tool_call",
+                        function_name=tool_call.function_name,
+                        output_text=f"error: {error_msg}",
+                    ))
+                    return messages, events
 
         # --- Missing config guard ---
         if not tool_config:
